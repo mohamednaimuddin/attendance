@@ -5,7 +5,7 @@
 
 // --- DATABASE CONFIGURATION ---
 $host = 'localhost';
-$db   = 'attendance_db1';
+$db   = 'atdnce_test';
 $user = 'root';
 $pass = '';
 
