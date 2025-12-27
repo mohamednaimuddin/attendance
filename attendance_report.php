@@ -665,7 +665,7 @@ tfoot td {
 /* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
 @media print {
     @page {
-        margin: 0.3cm;
+        margin: 10cm;
         size: A4 portrait;
     }
 
@@ -690,7 +690,15 @@ tfoot td {
         display:none !important;
     }
     
-    .report-card, .table-responsive {
+    .report-card {
+        box-shadow:none !important;
+        padding:0;
+        border:none;
+        max-width: 100% !important;
+        height: 100%;
+    }
+    
+    .table-responsive {
         box-shadow:none !important;
         padding:0;
         border:none;
@@ -713,8 +721,9 @@ tfoot td {
     }
     
     .user-report-section h4 {
-        margin: 0 0 3px 0 !important;
-        font-size: 10pt !important;
+        margin: 0 0 1px 0 !important;
+        font-size: 8pt !important;
+        flex-shrink: 0;
     }
 
     /* Page break between user reports for clean multi-user printing */
@@ -725,15 +734,16 @@ tfoot td {
 
     .report-info {
         display:block;
-        font-size: 9pt;
-        margin-bottom: 4px;
+        font-size: 8pt;
+        margin-bottom: 1px;
         border-left: none;
         padding-left: 0;
         color: #000;
         text-align: left;
+        flex-shrink: 0;
     }
     .report-info .user-name {
-        font-size: 10pt;
+        font-size: 8pt;
         font-weight: 900;
         color: #000;
     }
@@ -744,9 +754,16 @@ tfoot td {
         margin-top: auto;
         width: 100%; 
         text-align: right; 
-        font-size: 7pt; 
-        padding: 3px 5px; 
+        font-size: 6pt; 
+        padding: 1px 2px; 
         color: #555;
+        flex-shrink: 0;
+    }
+
+    .table-responsive {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
     table { 
@@ -755,23 +772,27 @@ tfoot td {
         color: #000; 
         table-layout: fixed;
         flex: 1;
+        display: table;
     }
 
     th, td {
         border: 0.5pt solid #444;
         padding: 2px 3px; 
-        font-size: 7.5pt;
+        font-size: 7pt;
         line-height: 1.2;
         white-space: nowrap;
         vertical-align: middle;
         overflow: hidden;
         text-overflow: ellipsis;
-        height: auto;
     }
     
-    /* Distribute row heights evenly to fill page */
+    /* Make rows stretch to fill available space */
+    tbody {
+        display: table-row-group;
+    }
+    
     tbody tr {
-        height: calc((100vh - 80px) / 33); /* 31 days + header + footer row */
+        height: calc((100vh - 100px) / 34);
     }
     
     /* Make date column show compact format */
@@ -792,7 +813,7 @@ tfoot td {
     th:nth-child(5), td:nth-child(5) {
         white-space: normal;
         word-break: break-word;
-        font-size: 7pt;
+        font-size: 6.5pt;
     }
 
     .table-header-custom th, tfoot td { 
@@ -801,7 +822,7 @@ tfoot td {
         -webkit-print-color-adjust: exact; 
         color-adjust: exact; 
         print-color-adjust: exact;
-        font-size: 7.5pt; 
+        font-size: 7pt; 
         font-weight: bold;
         padding: 3px 3px;
     }
@@ -821,29 +842,30 @@ tfoot td {
         display: table-footer-group;
     }
     
-    /* Prevent page breaks inside table */
-    table, tr, td, th {
-        page-break-inside: avoid;
+    /* Keep header with table */
+    thead {
+        display: table-header-group;
     }
     
     /* Print page header - shown on each page */
     .print-page-header {
         display: block !important;
         text-align: center;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
         color: #000;
-        border-bottom: 1px solid #000;
-        padding-bottom: 3px;
+        border-bottom: 1.5pt solid #000;
+        padding-bottom: 2px;
+        flex-shrink: 0;
     }
     .print-page-header h1 {
-        font-size: 14pt;
+        font-size: 12pt;
         font-weight: 700;
         margin: 0;
         text-transform: uppercase;
     }
     .print-page-header p {
-        font-size: 9pt;
-        margin: 2px 0 0 0;
+        font-size: 8pt;
+        margin: 1px 0 0 0;
         font-weight: 500;
     }
 }
