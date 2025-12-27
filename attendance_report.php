@@ -457,6 +457,13 @@ h2 {
 }
 .report-info span { color: var(--main-color); transition: color 0.5s; }
 
+/* Date display toggle - show full on screen, compact on print */
+.date-full { display: inline; }
+.date-compact { display: none; }
+
+/* Hide print page header on screen */
+.print-page-header { display: none; }
+
 /* Table styles */
 .table-responsive {
     border-radius:8px;
@@ -655,36 +662,28 @@ tfoot td {
     .report-info { font-size: 0.8rem; margin-bottom: 10px; padding-left: 5px; }
 }
 
-/* Print Styles: MOST COMPACT SETTINGS */
+/* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
 @media print {
     @page {
-        margin: 0.5cm;
-        size: A4;
+        margin: 0.3cm;
+        size: A4 portrait;
     }
 
-    body { background: #fff; }
-
-    /* NEW: Print Header Styles */
-    .print-header {
-        display: block !important;
-        text-align: center;
-        margin-bottom: 10px;
-        color: #000;
+    * {
+        box-sizing: border-box;
     }
-    .print-header h1 {
-        font-size: 16pt;
-        font-weight: 700;
+
+    html, body { 
+        background: #fff; 
+        padding: 0;
         margin: 0;
-        padding-bottom: 3px;
-        border-bottom: 2px solid #000;
-        display: inline-block;
-    }
-    .print-header p {
-        font-size: 10pt;
-        margin-top: 5px;
-        font-weight: 500;
+        height: 100%;
     }
 
+    /* Hide old print header - using new per-page header instead */
+    .print-header {
+        display: none !important;
+    }
 
     /* Hide non-report elements */
     .company-header, .filter-section, .btn, .text-center a, .theme-switch-wrapper, .modal, .container-fluid > .report-card > h2 {
@@ -695,7 +694,27 @@ tfoot td {
         box-shadow:none !important;
         padding:0;
         border:none;
-        max-width: 100% !important; /* Ensure it takes full width */
+        max-width: 100% !important;
+        overflow: visible !important;
+    }
+    
+    .container-fluid {
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 100%;
+    }
+    
+    .user-report-section {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .user-report-section h4 {
+        margin: 0 0 3px 0 !important;
+        font-size: 10pt !important;
     }
 
     /* Page break between user reports for clean multi-user printing */
@@ -706,15 +725,15 @@ tfoot td {
 
     .report-info {
         display:block;
-        font-size:10pt;
-        margin-bottom:5px;
+        font-size: 9pt;
+        margin-bottom: 4px;
         border-left: none;
         padding-left: 0;
         color: #000;
         text-align: left;
     }
     .report-info .user-name {
-        font-size: 11pt;
+        font-size: 10pt;
         font-weight: 900;
         color: #000;
     }
@@ -722,47 +741,110 @@ tfoot td {
     .print-footer { 
         display: block !important;
         position: static;
-        margin-top: 10px;
+        margin-top: auto;
         width: 100%; 
         text-align: right; 
-        font-size: 8pt; 
-        padding: 5px 10px; 
+        font-size: 7pt; 
+        padding: 3px 5px; 
         color: #555;
     }
 
     table { 
-        width:100%; 
-        border-collapse:collapse; 
+        width: 100%; 
+        border-collapse: collapse; 
         color: #000; 
-        table-layout: fixed; 
-        word-wrap: break-word;
+        table-layout: fixed;
+        flex: 1;
     }
 
     th, td {
-        border:1px solid #000;
-        padding: 2px 4px; 
-        font-size: 7pt;
-        white-space: normal !important;
-        word-break: break-word !important;
-        vertical-align: top;
+        border: 0.5pt solid #444;
+        padding: 2px 3px; 
+        font-size: 7.5pt;
+        line-height: 1.2;
+        white-space: nowrap;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        height: auto;
     }
-
-    /* Distribute column widths for better print layout */
-    th:nth-child(1), td:nth-child(1) { width: 12%; } /* Date */
-    th:nth-child(2), td:nth-child(2) { width: 10%; } /* Check-In Time */
-    th:nth-child(3), td:nth-child(3) { width: 22%; } /* Check-In Store */
-    th:nth-child(4), td:nth-child(4) { width: 10%; } /* Check-Out Time */
-    th:nth-child(5), td:nth-child(5) { width: 22%; } /* Check-Out Store */
-    th:nth-child(6), td:nth-child(6) { width: 12%; } /* Work Time */
-    th:nth-child(7), td:nth-child(7) { width: 12%; } /* Overtime */
     
+    /* Distribute row heights evenly to fill page */
+    tbody tr {
+        height: calc((100vh - 80px) / 33); /* 31 days + header + footer row */
+    }
+    
+    /* Make date column show compact format */
+    td:nth-child(1) .date-full { display: none !important; }
+    td:nth-child(1) .date-compact { display: inline !important; }
+
+    /* Distribute column widths for A4 portrait */
+    th:nth-child(1), td:nth-child(1) { width: 12%; } /* Date - compact format */
+    th:nth-child(2), td:nth-child(2) { width: 10%; } /* Check-In Time */
+    th:nth-child(3), td:nth-child(3) { width: 21%; } /* Check-In Store */
+    th:nth-child(4), td:nth-child(4) { width: 10%; } /* Check-Out Time */
+    th:nth-child(5), td:nth-child(5) { width: 21%; } /* Check-Out Store */
+    th:nth-child(6), td:nth-child(6) { width: 10%; } /* Work Time */
+    th:nth-child(7), td:nth-child(7) { width: 10%; } /* Overtime */
+    
+    /* Allow store columns to wrap if needed */
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(5), td:nth-child(5) {
+        white-space: normal;
+        word-break: break-word;
+        font-size: 7pt;
+    }
 
     .table-header-custom th, tfoot td { 
         background-color: #ddd !important; 
         color: #000 !important; 
         -webkit-print-color-adjust: exact; 
         color-adjust: exact; 
-        font-size: 7pt; 
+        print-color-adjust: exact;
+        font-size: 7.5pt; 
+        font-weight: bold;
+        padding: 3px 3px;
+    }
+    
+    /* Remove striping for cleaner print */
+    .table-striped > tbody > tr:nth-of-type(odd) > * {
+        --bs-table-bg-type: transparent;
+    }
+    
+    /* Keep weekend highlight subtle */
+    .table-warning {
+        background-color: #f0f0f0 !important;
+    }
+    
+    /* Ensure footer fits on same page */
+    tfoot {
+        display: table-footer-group;
+    }
+    
+    /* Prevent page breaks inside table */
+    table, tr, td, th {
+        page-break-inside: avoid;
+    }
+    
+    /* Print page header - shown on each page */
+    .print-page-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 5px;
+        color: #000;
+        border-bottom: 1px solid #000;
+        padding-bottom: 3px;
+    }
+    .print-page-header h1 {
+        font-size: 14pt;
+        font-weight: 700;
+        margin: 0;
+        text-transform: uppercase;
+    }
+    .print-page-header p {
+        font-size: 9pt;
+        margin: 2px 0 0 0;
+        font-weight: 500;
     }
 }
 </style>
@@ -856,6 +938,12 @@ tfoot td {
     <?php foreach ($reports_output as $report): ?>
     
     <div class="user-report-section my-4">
+        <!-- Print header for each page -->
+        <div class="print-page-header">
+            <h1>Attendance Report</h1>
+            <p><?= $filtered_month_year_display ?></p>
+        </div>
+        
         <?php 
             // Display employee name and period for each separate report
             $user_period_info = '';
@@ -877,7 +965,7 @@ tfoot td {
         <table class="table table-bordered table-striped align-middle table-sm" style="font-size:0.85rem;">
             <thead class="table-header-custom">
                 <tr>
-                    <th>DATE</th><th>CHECK-IN TIME</th><th>CHECK-IN STORE</th><th>CHECK-OUT TIME</th><th>CHECK-OUT STORE</th><th>WORK TIME</th><th>OVERTIME</th>
+                    <th>DATE</th><th>CHECK-IN</th><th>CHECK-IN STORE</th><th>CHECK-OUT</th><th>CHECK-OUT STORE</th><th>WORK TIME</th><th>OVERTIME</th>
                 </tr>
             </thead>
             <tbody>
@@ -897,7 +985,10 @@ tfoot td {
                     $checkout_store_content = $has_work ? implode('<br>', $val['checkout_stores']) : '-';
                     ?>
                     <tr class="<?= trim($highlight_class . ' ' . $row_class) ?>">
-                        <td class="fw-bold"><span style="white-space: nowrap;"><?= date('d-m-Y, D', strtotime($day)) ?></span></td>
+                        <td class="fw-bold">
+                            <span class="date-full" style="white-space: nowrap;"><?= date('d-m-Y, D', strtotime($day)) ?></span>
+                            <span class="date-compact" style="display: none; white-space: nowrap;"><?= date('d M, D', strtotime($day)) ?></span>
+                        </td>
                         
                         <td><?= $checkin_content ?></td>
                         <td><?= $checkin_store_content ?></td>
