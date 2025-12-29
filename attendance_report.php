@@ -45,36 +45,31 @@ $admin_name_for_print = $_SESSION['full_name'] ?? 'Admin User';
 // --- END Admin Name Fetch ---
 
 // --- Filters & Input Sanitization (Using null coalescing operator ??) ---
-// Main Filter: Single Select. $filter_user is a single ID or 'all'
-$filter_user = filter_input(INPUT_GET, 'user', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? 'all';
-
-// Multi-Select Array for Print Modal:
+// Multi-Select Array for User Filter:
 $temp_input_array = filter_input(INPUT_GET, 'user', FILTER_SANITIZE_NUMBER_INT, FILTER_REQUIRE_ARRAY);
-// Use PHP 7.0+ null coalescing to ensure $filter_user_input_array is always an array
-$filter_user_input_array = is_array($temp_input_array) ? array_filter($temp_input_array) : []; 
+// Use PHP 7.0+ null coalescing to ensure $filter_user_array is always an array
+$filter_user_array = is_array($temp_input_array) ? array_filter($temp_input_array) : []; 
 
 $date_range_preset = filter_input(INPUT_GET, 'range', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? '';
 $start_date = filter_input(INPUT_GET, 'start', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? '';
 $end_date = filter_input(INPUT_GET, 'end', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? '';
 
-$print_mode = filter_input(INPUT_GET, 'print_mode', FILTER_SANITIZE_NUMBER_INT);
 
-
-// --- Set dates based on preset if no custom dates are provided ---
+// --- Set dates based on preset selection ---
 $default_filter_applied = false;
-if (empty($start_date) && empty($end_date)) {
-    if ($date_range_preset === 'last_month') {
-        $start_date = $last_month_start;
-        $end_date = $last_month_end;
-    } else { // Defaults to current_month
-        $start_date = $current_month_start;
-        $end_date = $current_month_end; 
-        $date_range_preset = 'current_month'; // Ensure preset is set correctly
-        $default_filter_applied = true;
-    }
-} else {
-    // If custom dates are set, override preset
-    $date_range_preset = 'custom';
+
+if ($date_range_preset === 'last_month') {
+    // Last month selected - use last month dates
+    $start_date = $last_month_start;
+    $end_date = $last_month_end;
+} elseif ($date_range_preset === 'custom' && !empty($start_date) && !empty($end_date)) {
+    // Custom range with valid dates - keep as provided
+} else { 
+    // Defaults to current_month (including when no preset or current_month selected)
+    $start_date = $current_month_start;
+    $end_date = $current_month_end; 
+    $date_range_preset = 'current_month';
+    $default_filter_applied = true;
 }
 // --- END Default Dates ---
 
@@ -91,34 +86,21 @@ try {
     $user_map = [];
 }
 
-// --- Determine Users to Report On (Handles both single and multi-select logic) ---
+// --- Determine Users to Report On ---
 $users_to_report = [];
 $sql_user_ids = [];
 
-if ($print_mode) {
-    // 1. PRINT MODE: Multi-select array determines users. If empty, report on ALL.
-    if (!empty($filter_user_input_array)) {
-        foreach ($filter_user_input_array as $user_id) {
-            $user_id = (int)$user_id;
-            if (isset($user_map[$user_id])) {
-                $users_to_report[$user_id] = $user_map[$user_id];
-                $sql_user_ids[] = $user_id;
-            }
+// Multi-select: if users are selected, filter by them; otherwise report on ALL
+if (!empty($filter_user_array)) {
+    foreach ($filter_user_array as $user_id) {
+        $user_id = (int)$user_id;
+        if (isset($user_map[$user_id])) {
+            $users_to_report[$user_id] = $user_map[$user_id];
+            $sql_user_ids[] = $user_id;
         }
-    } else {
-        // Report on ALL Users for Print Mode when nothing is selected
-        $users_to_report = $user_map;
-        $sql_user_ids = $all_user_ids;
-    }
-} elseif ($filter_user !== 'all' && $filter_user !== '') {
-    // 2. MAIN FILTER: Single User Selected
-    $user_id = (int)$filter_user;
-    if (isset($user_map[$user_id])) {
-        $users_to_report[$user_id] = $user_map[$user_id];
-        $sql_user_ids[] = $user_id;
     }
 } else {
-    // 3. MAIN FILTER: 'All Users' Selected (Default view, single aggregated report)
+    // No users selected = report on ALL Users
     $users_to_report = $user_map;
     $sql_user_ids = $all_user_ids;
 }
@@ -167,7 +149,7 @@ function fmt($sec){
 
 // Constants for work shift calculation
 $SHIFT_HOURS = 10; 
-$OVERTIME_BUFFER_MINUTES = 29; 
+$OVERTIME_BUFFER_MINUTES = 39; 
 $shift_seconds = $SHIFT_HOURS * 3600;
 $overtime_threshold = $shift_seconds + ($OVERTIME_BUFFER_MINUTES * 60);
 
@@ -211,28 +193,8 @@ $reports_output = [];
 $users_to_display = [];
 
 // Determine who to iterate over for separate reports
-if ($print_mode || ($filter_user !== 'all' && $filter_user !== '')) {
-    $users_to_display = $users_to_report;
-} else {
-    // If not in print mode AND 'All Users' is selected, treat it as one aggregated report.
-    $users_to_display[0] = ['id' => 0, 'full_name' => 'All Users']; 
-    
-    // Collect all unique days across all users for aggregation
-    $aggregated_data = [];
-    foreach ($daily_attendance as $u_id => $u_data) {
-        foreach ($u_data['days'] as $day => $data) {
-             $aggregated_data[$day] ??= $data; // Use ??=
-             if ($aggregated_data[$day] !== $data) { // If it was initialized by another user
-                 $aggregated_data[$day]['total_worked_sec'] += $data['total_worked_sec'];
-                 $aggregated_data[$day]['records'] = array_merge($aggregated_data[$day]['records'], $data['records']);
-             }
-        }
-    }
-    // Set the aggregated data to the virtual user 0
-    if(!empty($aggregated_data)) {
-        $daily_attendance[0] = ['name' => 'All Users', 'days' => $aggregated_data];
-    }
-}
+// Whether users are selected or not, always show separate reports for each user
+$users_to_display = $users_to_report;
 
 
 foreach ($users_to_display as $u_id => $u_data) {
@@ -348,6 +310,9 @@ if ($start_date || $end_date) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="icon" type="image/png" href="visionnew.png">
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
 /* ================================================= */
 /* ===== TEAL/NAVY MINIMALIST THEME (Matching admin_dashboard.php) ===== */
@@ -564,6 +529,52 @@ tfoot td {
 }
 /* === END FIXED BUTTON === */
 
+/* === SELECT2 CUSTOM STYLING === */
+.select2-container--bootstrap-5 .select2-selection {
+    min-height: 31px !important;
+    font-size: 0.875rem;
+}
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
+    padding: 2px 4px;
+}
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+    background-color: var(--main-color);
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    margin: 2px;
+}
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove {
+    color: #fff;
+    border-right: none;
+    padding-right: 4px;
+}
+.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove:hover {
+    background-color: transparent;
+    color: #fff;
+}
+html.dark-mode .select2-container--bootstrap-5 .select2-selection {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+html.dark-mode .select2-container--bootstrap-5 .select2-dropdown {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+html.dark-mode .select2-container--bootstrap-5 .select2-results__option {
+    color: var(--text-color);
+}
+html.dark-mode .select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: var(--main-color);
+}
+html.dark-mode .select2-container--bootstrap-5 .select2-search__field {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+/* === END SELECT2 STYLING === */
+
 /* --- Custom Modal Styling for Search/Checkboxes --- */
 .search-dropdown-container {
     position: relative;
@@ -665,7 +676,7 @@ tfoot td {
 /* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
 @media print {
     @page {
-        margin: 10cm;
+        margin-top: 2cm;
         size: A4 portrait;
     }
 
@@ -685,8 +696,9 @@ tfoot td {
         display: none !important;
     }
 
-    /* Hide non-report elements */
-    .company-header, .filter-section, .btn, .text-center a, .theme-switch-wrapper, .modal, .container-fluid > .report-card > h2 {
+    /* Hide non-report elements including Select2 */
+    .company-header, .filter-section, .btn, .text-center a, .theme-switch-wrapper, .modal, .container-fluid > .report-card > h2,
+    .select2-container {
         display:none !important;
     }
     
@@ -724,6 +736,8 @@ tfoot td {
         margin: 0 0 1px 0 !important;
         font-size: 8pt !important;
         flex-shrink: 0;
+        page-break-after: avoid;
+        break-after: avoid;
     }
 
     /* Page break between user reports for clean multi-user printing */
@@ -741,6 +755,8 @@ tfoot td {
         color: #000;
         text-align: left;
         flex-shrink: 0;
+        page-break-after: avoid;
+        break-after: avoid;
     }
     .report-info .user-name {
         font-size: 8pt;
@@ -771,8 +787,6 @@ tfoot td {
         border-collapse: collapse; 
         color: #000; 
         table-layout: fixed;
-        flex: 1;
-        display: table;
     }
 
     th, td {
@@ -791,8 +805,10 @@ tfoot td {
         display: table-row-group;
     }
     
+    /* Row height - auto for short ranges, calculated for full month */
     tbody tr {
-        height: calc((100vh - 100px) / 34);
+        height: auto;
+        min-height: 14px;
     }
     
     /* Make date column show compact format */
@@ -901,10 +917,9 @@ tfoot td {
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-12 col-md-3">
                     <label for="user-select" class="form-label visually-hidden">User</label>
-                    <select id="user-select" name="user" class="form-select form-select-sm" size="1">
-                        <option value="all" <?= ($filter_user === 'all')?'selected':'' ?>>All Users</option>
+                    <select id="user-select" name="user[]" class="form-select form-select-sm" multiple="multiple">
                         <?php foreach ($users as $u): ?>
-                        <option value="<?= $u['id'] ?>" <?= ((string)$u['id'] === $filter_user)?'selected':'' ?>><?= htmlspecialchars($u['full_name']) ?></option>
+                        <option value="<?= $u['id'] ?>" <?= in_array($u['id'], $filter_user_array) ? 'selected' : '' ?>><?= htmlspecialchars($u['full_name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -930,8 +945,8 @@ tfoot td {
                 <div class="col-12 col-md-4 d-flex gap-2 filter-buttons">
                     <button type="submit" class="btn btn-primary-custom btn-sm flex-fill">Filter <i class="fas fa-filter"></i></button>
                     <a href="attendance_report.php" class="btn btn-outline-secondary btn-sm flex-fill">Clear</a>
-                    <button type="button" class="btn btn-print-options btn-sm flex-fill" data-bs-toggle="modal" data-bs-target="#printOptionsModal">
-                        Print Options <i class="fas fa-print"></i>
+                    <button type="button" class="btn btn-print-options btn-sm flex-fill" onclick="window.print()">
+                        Print <i class="fas fa-print"></i>
                     </button>
                 </div>
             </form>
@@ -940,7 +955,7 @@ tfoot td {
         <?php 
         // Determine what is being displayed for the header
         $report_name = 'All Users ';
-        $is_multi_report = count($reports_output) > 1 || $print_mode;
+        $is_multi_report = count($reports_output) > 1;
         
         if ($is_multi_report) {
              $report_name = ''; // Blank the main title
@@ -970,8 +985,8 @@ tfoot td {
             // Display employee name and period for each separate report
             $user_period_info = '';
             if ($is_multi_report) {
-                // Determine if this is a sub-report (print mode or single user main filter)
-                if (count($reports_output) > 1 || $print_mode) {
+                // Determine if this is a sub-report
+                if (count($reports_output) > 1) {
                     $user_period_info = 'EMPLOYEE: ' . htmlspecialchars($report['name']) . ' | PERIOD: ' . $filtered_month_year_display;
                 }
             }
@@ -1042,98 +1057,14 @@ tfoot td {
     <?php endforeach; ?>
     </div>
 
-    <div class="print-footer" style="display:none;">
-        Generated by: <?= htmlspecialchars($admin_name_for_print) ?> on <?= date('d-m-Y h:i A') ?>
+
+
     </div>
 
-    </div>
-
-<div class="modal fade" id="printOptionsModal" tabindex="-1" aria-labelledby="printOptionsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white" style="background-color: var(--main-color) !important;">
-                <h5 class="modal-title" id="printOptionsModalLabel"><i class="fas fa-print me-2"></i>Generate & Print Attendance Report</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="printForm" action="attendance_report.php" method="GET">
-                <input type="hidden" name="print_mode" value="1"> 
-                <div class="modal-body">
-                    
-                    <div class="mb-4 p-3 border rounded" style="border-color: var(--main-color) !important;">
-                        <label for="print-range-select" class="form-label fw-bold"><i class="fas fa-calendar-alt me-1"></i> Select Report Period</label>
-                        <select id="print-range-select" name="range" class="form-select form-select-sm">
-                            <option value="current_month" <?= ($date_range_preset === 'current_month') ? 'selected' : '' ?>>Current Month (<?= date('F Y') ?>)</option>
-                            <option value="last_month" <?= ($date_range_preset === 'last_month') ? 'selected' : '' ?>>Last Month (<?= date('F Y', strtotime('last month')) ?>)</option>
-                            <option value="custom" <?= ($date_range_preset === 'custom') ? 'selected' : '' ?>>Custom Date Range</option>
-                        </select>
-                    </div>
-
-                    <div class="row g-3 mb-4 print-custom-date-fields" style="<?= ($date_range_preset !== 'custom') ? 'display:none;' : '' ?> border-left: 3px solid var(--accent); padding-left: 10px;">
-                        <div class="col-md-6">
-                            <label for="print-start-date" class="form-label form-label-sm">Start Date</label>
-                            <input id="print-start-date" type="date" name="start" class="form-control form-control-sm" value="<?= htmlspecialchars($start_date) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="print-end-date" class="form-label form-label-sm">End Date</label>
-                            <input id="print-end-date" type="date" name="end" class="form-control form-control-sm" value="<?= htmlspecialchars($end_date) ?>">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3 p-3 border rounded" style="background-color: var(--hover-bg); border-color: var(--border-color) !important;">
-                        <label class="form-label fw-bold d-block mb-2"><i class="fas fa-search me-1"></i> Search & Select User(s)</label>
-                        
-                        <div class="search-dropdown-container">
-                            <div class="input-group input-group-sm search-input-group">
-                                <span class="input-group-text"><i class="fas fa-user-tag"></i></span>
-                                <input type="text" id="userSearchInput" class="form-control" placeholder="Type name to search...">
-                            </div>
-                            
-                            <div id="availableUsersList" class="available-users-list">
-                                <div class="p-3 text-muted">Start typing a name to find employees.</div>
-                            </div>
-                        </div>
-
-                        <label class="form-label fw-bold d-block mt-3"><i class="fas fa-check-square me-1"></i> Selected Users</label>
-                        <div id="selectedUsersBadges">
-                            <span class="text-muted small" id="noUsersSelectedText">No users selected. Select none to print all.</span>
-                        </div>
-
-
-                        <div class="form-text mt-3 text-danger fw-bold">
-                            Tip: <span class="fw-bold text-danger">If no users are selected (list is empty), separate reports for ALL users will be generated.</span>
-                        </div>
-                        
-                        <div class="mt-2 d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-outline-success" id="selectAllSelected"><i class="fas fa-check-double"></i> Select All</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="deselectAllSelected"><i class="fas fa-times"></i> Deselect All</button>
-                        </div>
-                    </div>
-
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-print-options">
-                        <i class="fas fa-file-pdf me-1"></i> Generate & Print Report
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-// --- GLOBAL DATA: Embed PHP user data into JavaScript ---
-const USERS_DATA = <?= json_encode($users); ?>;
-// Convert to a map for easy lookup: {id: {id, full_name}}
-const USERS_MAP = USERS_DATA.reduce((map, user) => {
-    map[user.id] = user;
-    return map;
-}, {});
-
-// Store the currently selected user IDs
-let selectedUserIds = new Set(<?= json_encode(array_map('intval', $filter_user_input_array)); ?>);
-
-
 // --- Dark Mode Toggle Script ---
 const toggleSwitch = document.getElementById('theme-toggle');
 // Load theme from localStorage or system preference
@@ -1156,7 +1087,7 @@ toggleSwitch.addEventListener('change', function() {
 });
 
 
-// --- Date Range Dropdown Logic (Main & Print Filters) ---
+// --- Date Range Dropdown Logic ---
 function setupDateRangeLogic(rangeSelectId, customFieldsClass) {
     const rangeSelect = document.getElementById(rangeSelectId);
     const customDateFields = document.querySelectorAll(customFieldsClass);
@@ -1164,8 +1095,7 @@ function setupDateRangeLogic(rangeSelectId, customFieldsClass) {
     function toggleCustomDates() {
         const isCustom = rangeSelect.value === 'custom';
         customDateFields.forEach(field => {
-            // Use 'block' for the main filter, 'flex' for the modal row
-            field.style.display = isCustom ? (customFieldsClass.includes('row') ? 'flex' : 'block') : 'none';
+            field.style.display = isCustom ? 'block' : 'none';
         });
     }
 
@@ -1177,186 +1107,15 @@ function setupDateRangeLogic(rangeSelectId, customFieldsClass) {
 
 document.addEventListener('DOMContentLoaded', () => {
     setupDateRangeLogic('range-select', '.custom-date-fields');
-    setupDateRangeLogic('print-range-select', '.print-custom-date-fields');
     
-    // Initialize the Print Modal user list management
-    renderSelectedUsers();
-    setupSearchFunctionality();
-    setupSelectAllButtons();
-
-    // --- Print on Load Logic (for print_mode=1) ---
-    <?php if ($print_mode): ?>
-        const reportCard = document.querySelector('.report-card');
-        if (reportCard) {
-            reportCard.style.maxWidth = '100%'; 
-        }
-        
-        setTimeout(function() {
-            window.print();
-            // Redirect back to the normal view after a short period
-            setTimeout(() => {
-                window.location.href = window.location.pathname; 
-            }, 500); 
-        }, 300); 
-    <?php endif; ?>
+    // Initialize Select2 for multi-select user dropdown
+    $('#user-select').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Select users (leave empty for all)',
+        allowClear: true,
+        width: '100%'
+    });
 });
-
-// =========================================================================
-// === PRINT MODAL USER SEARCH AND SELECTION LOGIC ===========================
-// =========================================================================
-const searchInput = document.getElementById('userSearchInput');
-const availableUsersList = document.getElementById('availableUsersList');
-const selectedUsersBadges = document.getElementById('selectedUsersBadges');
-const printForm = document.getElementById('printForm');
-const noUsersSelectedText = document.getElementById('noUsersSelectedText');
-
-
-/**
- * Renders the search results in the dropdown list.
- * @param {string} searchTerm 
- */
-function renderAvailableUsers(searchTerm) {
-    const term = searchTerm.toLowerCase().trim();
-    let html = '';
-    let matches = 0;
-
-    if (term.length === 0) {
-        availableUsersList.innerHTML = '<div class="p-3 text-muted">Start typing a name to find employees.</div>';
-        return;
-    }
-
-    USERS_DATA.forEach(user => {
-        // Only show users who match the search term AND are NOT currently selected
-        if (!selectedUserIds.has(parseInt(user.id)) && user.full_name.toLowerCase().includes(term)) {
-            matches++;
-            html += `
-                <div class="list-item" data-user-id="${user.id}" data-user-name="${user.full_name}">
-                    <div class="form-check">
-                        <input class="form-check-input print-user-checkbox" type="checkbox" value="${user.id}" id="print-user-${user.id}"
-                            onchange="toggleUserSelection(${user.id}, '${user.full_name.replace(/'/g, "\\'")}', this.checked)">
-                        <label class="form-check-label" for="print-user-${user.id}">${user.full_name}</label>
-                    </div>
-                </div>
-            `;
-        }
-    });
-
-    if (matches === 0) {
-        html = `<div class="p-3 text-muted">No employees found matching "${term}" or they are already selected.</div>`;
-    }
-
-    availableUsersList.innerHTML = html;
-}
-
-/**
- * Renders the currently selected users as badges and adds hidden inputs to the form.
- */
-function renderSelectedUsers() {
-    selectedUsersBadges.innerHTML = '';
-    noUsersSelectedText.style.display = selectedUserIds.size === 0 ? 'inline' : 'none';
-
-    // Remove all previous hidden inputs for users
-    printForm.querySelectorAll('input[name="user[]"]').forEach(input => input.remove());
-
-    selectedUserIds.forEach(userId => {
-        const user = USERS_MAP[userId];
-        if (!user) return;
-
-        // 1. Create Badge for display
-        const badge = document.createElement('span');
-        badge.className = 'user-badge';
-        badge.innerHTML = `
-            ${user.full_name}
-            <button type="button" class="remove-btn" onclick="toggleUserSelection(${userId}, '${user.full_name.replace(/'/g, "\\'")}', false)">
-                &times;
-            </button>
-        `;
-        selectedUsersBadges.appendChild(badge);
-
-        // 2. Create Hidden Input for form submission
-        const hiddenInput = document.createElement('input');
-        hiddenInput.type = 'hidden';
-        hiddenInput.name = 'user[]';
-        hiddenInput.value = userId;
-        hiddenInput.id = `hidden-user-${userId}`;
-        printForm.appendChild(hiddenInput);
-    });
-    
-    // After selection change, re-render the available list to remove the newly selected user
-    renderAvailableUsers(searchInput.value);
-}
-
-/**
- * Toggles a user's selection status.
- * @param {number|string} userId 
- * @param {string} userName 
- * @param {boolean} isSelected 
- */
-function toggleUserSelection(userId, userName, isSelected) {
-    const id = parseInt(userId);
-    if (isSelected) {
-        selectedUserIds.add(id);
-    } else {
-        selectedUserIds.delete(id);
-    }
-    renderSelectedUsers();
-}
-
-/**
- * Sets up the live search and dropdown visibility.
- */
-function setupSearchFunctionality() {
-    let timeout = null;
-
-    searchInput.addEventListener('input', function() {
-        clearTimeout(timeout);
-        const term = this.value;
-        
-        if (term.length > 0) {
-            availableUsersList.style.display = 'block';
-        } else {
-            availableUsersList.style.display = 'none';
-        }
-
-        // Debounce the search rendering for performance
-        timeout = setTimeout(() => {
-            renderAvailableUsers(term);
-        }, 200);
-    });
-
-    // Hide dropdown on blur unless an item inside is clicked
-    searchInput.addEventListener('blur', function() {
-        // Use a timeout to allow click events on list items to register first
-        setTimeout(() => {
-            availableUsersList.style.display = 'none';
-        }, 150);
-    });
-    
-    // Show dropdown again on focus if there's text
-    searchInput.addEventListener('focus', function() {
-        if (this.value.length > 0) {
-            availableUsersList.style.display = 'block';
-            // Re-render in case users were selected/deselected elsewhere
-            renderAvailableUsers(this.value); 
-        }
-    });
-}
-
-/**
- * Sets up the Select All / Deselect All buttons.
- */
-function setupSelectAllButtons() {
-    document.getElementById('selectAllSelected').addEventListener('click', function() {
-        selectedUserIds.clear();
-        USERS_DATA.forEach(user => selectedUserIds.add(parseInt(user.id)));
-        renderSelectedUsers();
-    });
-
-    document.getElementById('deselectAllSelected').addEventListener('click', function() {
-        selectedUserIds.clear();
-        renderSelectedUsers();
-    });
-}
 
 </script>
 </body>

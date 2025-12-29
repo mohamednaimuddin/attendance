@@ -193,9 +193,9 @@ function fmt($sec){
     return sprintf("%02d:%02d",$h,$m); 
 }
 
-// Default shift calculation (10 hours for worked, 10 hours 29 min threshold for OT)
+// Default shift calculation (10 hours for worked, 10 hours 39 min threshold for OT)
 $shift_seconds = 10*3600; // 10 hours
-$overtime_threshold = $shift_seconds + (29*60); // 10h 29m
+$overtime_threshold = $shift_seconds + (39*60); // 10h 39m
 
 // Summary Calculation
 $summary = [];
@@ -225,7 +225,7 @@ foreach ($data as $uid => $days) {
             $standard_sec = 0;
 
         } else {
-            // RULE: Weekday/Weekend (non-Friday) calculation (10h shift + 29m buffer)
+            // RULE: Weekday/Weekend (non-Friday) calculation (10h shift + 39m buffer)
             if ($worked_sec_total > $overtime_threshold) {
                 // If over threshold, standard time is capped at shift hours, excess is OT
                 $overtime_sec = $worked_sec_total - $shift_seconds;
@@ -271,6 +271,7 @@ foreach ($paginated_days as $item) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="visionnew.png">
 <style>
 /* ================================================= */
 /* ===== TEAL/NAVY MINIMALIST THEME (Matching admin_dashboard.php) ===== */
