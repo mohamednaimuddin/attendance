@@ -104,16 +104,6 @@ $mobile_footer_content = '
         </li>
         <li class="dropdown-divider"></li>
         <li class="px-3 py-1">
-            <div class="theme-switch-wrapper d-flex justify-content-between align-items-center">
-                <em id="theme-label-mobile" class="text-dark">Dark Mode</em>
-                <label class="theme-switch theme-switch-mobile" for="theme-toggle-mobile">
-                    <input type="checkbox" id="theme-toggle-mobile" role="switch" aria-labelledby="theme-label-mobile">
-                    <div class="slider round"></div>
-                </label>
-            </div>
-        </li>
-        <li><hr class="dropdown-divider"></li>
-        <li class="px-3 py-1">
             <a href="logout.php" class="btn btn-sm btn-danger w-100">
                 <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
             </a>
@@ -178,14 +168,6 @@ $mobile_footer_content = '
             <i class="fa-solid fa-sitemap"></i> Manage Department
         </a>
 
-        <span class="sidebar-title">Time & Shifts</span>
-        <a href="create_shift.php" class="nav-link">
-            <i class="fa-solid fa-business-time"></i> Create Shift
-        </a>
-        <a href="assign_shift.php" class="nav-link">
-            <i class="fa-solid fa-user-clock"></i> Assign Shifts
-        </a>
-
         <span class="sidebar-title">Reporting & Logs</span>
         <a href="attendance_report.php" class="nav-link">
             <i class="fa-solid fa-chart-line"></i> Attendance Reports
@@ -198,14 +180,6 @@ $mobile_footer_content = '
     <div class="sidebar-footer d-none d-lg-block"> 
         <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
         
-        <div class="theme-switch-wrapper d-flex justify-content-between align-items-center">
-            <em id="theme-label">Dark Mode</em>
-            <label class="theme-switch" for="theme-toggle">
-                <input type="checkbox" id="theme-toggle" role="switch" aria-labelledby="theme-label">
-                <div class="slider round"></div>
-            </label>
-        </div>
-
         <a href="logout.php" class="btn logout-btn-footer">
             <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
         </a>
@@ -340,54 +314,6 @@ $mobile_footer_content = '
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-<script>
-    // JavaScript for theme toggling
-    const themeToggleDesktop = document.getElementById('theme-toggle');
-    const themeToggleMobile = document.getElementById('theme-toggle-mobile');
-    const htmlElement = document.documentElement;
-
-    function applyTheme(theme) {
-        if (theme === 'dark') {
-            htmlElement.classList.add('dark-mode');
-            if (themeToggleDesktop) themeToggleDesktop.checked = true;
-            if (themeToggleMobile) themeToggleMobile.checked = true;
-        } else {
-            htmlElement.classList.remove('dark-mode');
-            if (themeToggleDesktop) themeToggleDesktop.checked = false;
-            if (themeToggleMobile) themeToggleMobile.checked = false;
-        }
-    }
-
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    // Prioritize saved theme, then OS preference, otherwise default to 'light'
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-    applyTheme(initialTheme);
-
-    // Function to handle theme change and save preference
-    const handleThemeChange = (event) => {
-        const newTheme = event.target.checked ? 'dark' : 'light';
-        
-        // Find the other toggle and set its state
-        if (event.target.id === 'theme-toggle' && themeToggleMobile) {
-            themeToggleMobile.checked = event.target.checked;
-        } else if (event.target.id === 'theme-toggle-mobile' && themeToggleDesktop) {
-            themeToggleDesktop.checked = event.target.checked;
-        }
-
-        applyTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-    };
-
-    // Add event listeners for the toggle switches
-    if (themeToggleDesktop) {
-        themeToggleDesktop.addEventListener('change', handleThemeChange);
-    }
-    if (themeToggleMobile) {
-        themeToggleMobile.addEventListener('change', handleThemeChange);
-    }
-</script>
 
 </body>
 </html>

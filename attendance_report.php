@@ -299,660 +299,923 @@ if ($start_date || $end_date) {
         $filtered_month_year_display = date('F Y', $start_ts);
     }
 }
+// ===================================================
+// --- DATABASE COUNTS (CORRECTIONS & RESETS) ---
+// ===================================================
+
+$pending_resets = 0;
+$pending_corrections = 0;
+
+// ✅ Ensure both mysqli and PDO support (depending on config.php)
+if (isset($conn) && $conn instanceof mysqli) {
+    // --- Using mysqli ---
+    try {
+        // Pending password reset requests
+        $sql_resets = "SELECT COUNT(*) AS total FROM password_reset_requests WHERE status = 'PENDING'";
+        $res_resets = mysqli_query($conn, $sql_resets);
+        if ($res_resets && $row = mysqli_fetch_assoc($res_resets)) {
+            $pending_resets = (int)$row['total'];
+        }
+
+        // Pending correction requests
+        $sql_corrections = "SELECT COUNT(*) AS total FROM correction_requests WHERE status = 'PENDING'";
+        $res_corrections = mysqli_query($conn, $sql_corrections);
+        if ($res_corrections && $row = mysqli_fetch_assoc($res_corrections)) {
+            $pending_corrections = (int)$row['total'];
+        }
+    } catch (Exception $e) {
+        error_log("MySQLi DB Error: " . $e->getMessage());
+    }
+} elseif (isset($pdo) && $pdo instanceof PDO) {
+    // --- Using PDO ---
+    try {
+        $stmt1 = $pdo->query("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING'");
+        $pending_resets = (int)$stmt1->fetchColumn();
+
+        $stmt2 = $pdo->query("SELECT COUNT(*) FROM correction_requests WHERE status = 'PENDING'");
+        $pending_corrections = (int)$stmt2->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("PDO DB Error: " . $e->getMessage());
+    }
+} else {
+    error_log("❌ No valid DB connection found in config.php");
+}
+
+// ===================================================
+// --- ADMIN NAME & TOTAL ALERTS ---
+// ===================================================
+$admin_name = $_SESSION['full_name'] ?? 'Admin';
+
+// Count all active alerts that are not dismissed
+$total_alerts = 0;
+if ($pending_corrections > 0 && !$corrections_dismissed) {
+    $total_alerts += $pending_corrections;
+}
+if ($pending_resets > 0 && !$resets_dismissed) {
+    $total_alerts += $pending_resets;
+}
+// ===================================================
+// --- MOBILE HEADER CONTENT ---
+// ===================================================
+$mobile_footer_content = '
+<div class="dropdown d-inline-block d-lg-none ms-2">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Settings">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 py-2">
+            <span class="welcome-text text-dark d-block">Welcome, ' . htmlspecialchars($admin_name) . '</span>
+        </li>
+        <li class="dropdown-divider"></li>
+        <li class="px-3 py-1">
+            <a href="logout.php" class="btn btn-sm btn-danger w-100">
+                <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+            </a>
+        </li>
+    </ul>
+</div>
+';
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Attendance Report - Visionangles</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<link rel="icon" type="image/png" href="visionnew.png">
-<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Report - Visionangles</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="visionnew.png">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/admin_dashboard.css">
 <style>
-/* ================================================= */
-/* ===== TEAL/NAVY MINIMALIST THEME (Matching admin_dashboard.php) ===== */
-/* ================================================= */
-:root {
-    /* --- LIGHT MODE (Teal Accent) --- */
-    --text-color: #2c3e50;
-    --bg-primary: #f7f9fb;
-    --card-bg: #ffffff;
-    --muted-text-color: #95a5a6;
-    --main-color: #1abc9c; /* Primary: Deep Teal */
-    --main-hover: #148f77; 
-    --accent: #3498db; 
-    --error: #e74c3c;
-    --table-header: #1abc9c; /* Use main-color directly for table */
-    --table-header-text: #ffffff;
-    --border-color: rgba(0,0,0,0.1);
-    --shadow: 0 10px 30px rgba(0,0,0,0.08);
-    --hover-bg: rgba(26, 188, 156, 0.05); 
-    transition: all 0.5s ease;
-}
-
-html.dark-mode {
-    --text-color: #ecf0f1;
-    --bg-primary: #1c2833;
-    --card-bg: #2c3e50;
-    --muted-text-color: #bdc3c7;
-    --main-color: #1abc9c;
-    --main-hover: #16a085;
-    --accent: #3498db;
-    --error: #ff6b6b;
-    --table-header: #1abc9c;
-    --table-header-text: #ffffff;
-    --border-color: rgba(255, 255, 255, 0.1);
-    --shadow: 0 10px 30px rgba(0,0,0,0.4);
-    --hover-bg: rgba(26, 188, 156, 0.1);
-}
-
-body {
-    font-family:'Poppins',sans-serif;
-    background-color:var(--bg-primary);
-    color:var(--text-color);
-    padding:20px;
-    transition: background-color 0.5s ease, color 0.5s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.report-card {
-    background: var(--card-bg);
-    padding: 30px;
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-    animation: fadeIn 0.8s ease-out;
-    transition: all 0.5s ease;
-}
-
-.company-header {
-    color: var(--main-color);
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 2rem;
-    text-align: center;
-    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    width: 100%;
-}
-.company-header a { color: inherit; text-decoration: none; transition: color 0.3s; }
-.company-header a:hover { color: var(--main-hover); }
-
-h2 {
-    font-size:30px;
-    font-weight:700;
-    color:var(--main-color);
-    margin-bottom:30px;
-    text-align:center;
-    transition: color 0.5s;
-    text-transform: uppercase;
-}
-
-/* --- Custom Filter Button Style (Teal) --- */
-.btn-primary-custom {
-    background-color: var(--main-color);
-    border-color: var(--main-color);
-    color: var(--table-header-text); /* White */
-    font-weight: 600;
-}
-.btn-primary-custom:hover {
-    background-color: var(--main-hover);
-    border-color: var(--main-hover);
-    color: var(--table-header-text);
-}
-/* --- END Custom Filter Button Style --- */
-
-
-.report-info {
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.9rem;
-    margin-bottom: 20px;
-    color: var(--muted-text-color);
-    padding-left: 10px;
-    border-left: 4px solid var(--main-color);
-    transition: all 0.5s ease;
-}
-.report-info span { color: var(--main-color); transition: color 0.5s; }
-
-/* Date display toggle - show full on screen, compact on print */
-.date-full { display: inline; }
-.date-compact { display: none; }
-
-/* Hide print page header on screen */
-.print-page-header { display: none; }
-
-/* Table styles */
-.table-responsive {
-    border-radius:8px;
-    overflow-x: auto;
-    border: 1px solid var(--border-color);
-}
-.table {
-    margin-bottom: 0;
-    color: var(--text-color);
-    min-width: 700px;
-}
-
-/* Updated for smaller screen font and no wrap */
-.table-header-custom th {
-    background-color: var(--table-header);
-    color: var(--table-header-text);
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    border-bottom: 2px solid var(--main-hover);
-    border-color: var(--border-color) !important;
-    white-space: nowrap;
-}
-/* Updated for smaller screen padding */
-.table tbody tr td { 
-    padding: 0.35rem 0.5rem; 
-}
-
-
-tfoot td {
-    font-weight: 700;
-    background-color: var(--main-color) !important;
-    color: var(--table-header-text) !important; 
-}
-
-/* Add custom class for Friday/Weekend row */
-.table-warning {
-    --bs-table-bg-type: var(--bs-warning-rgb);
-    background-color: rgba(255, 193, 7, 0.1) !important;
-}
-
-/* Custom color for OT text */
-.text-overtime {
-    color: var(--error);
-    font-weight: 600;
-}
-
-/* Dark Mode Switch Styling */
-.theme-switch-wrapper {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    display: flex;
-    align-items: center;
-    z-index: 1000;
-}
-
-/* === PRINT BUTTON STYLE (RED) === */
-.btn-print-options {
-    background-color: #e74c3c; /* Red/Error Color */
-    border-color: #e74c3c;
-    color: #ffffff; /* White text */
-}
-.btn-print-options:hover {
-    background-color: #c0392b; /* Darker Red on hover */
-    border-color: #c0392b;
-    color: #ffffff;
-}
-/* === END PRINT BUTTON STYLE === */
-
-/* === BACK TO DASHBOARD FIXED BUTTON (NEW) === */
-.btn-back-to-dashboard-fixed {
-    position: fixed;
-    top: 15px;
-    right: 15px;
-    z-index: 1010;
-    font-weight: 600;
-    padding: 8px 15px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    background-color: var(--card-bg); 
-    border-color: var(--main-color);
-    color: var(--main-color);
-    box-shadow: var(--shadow);
-}
-.btn-back-to-dashboard-fixed:hover {
-    background-color: var(--main-color);
-    color: var(--table-header-text);
-}
-/* Hide the fixed button completely during print */
-@media print {
-    .btn-back-to-dashboard-fixed {
-        display: none !important;
-    }
-}
-/* Move the theme switch slightly to the left to avoid collision */
-.theme-switch-wrapper {
-    right: 180px;
-}
-/* === END FIXED BUTTON === */
-
-/* === SELECT2 CUSTOM STYLING === */
-.select2-container--bootstrap-5 .select2-selection {
-    min-height: 31px !important;
-    font-size: 0.875rem;
-}
-.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
-    padding: 2px 4px;
-}
-.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
-    background-color: var(--main-color);
-    border: none;
-    color: #fff;
-    font-size: 0.8rem;
-    padding: 2px 8px;
-    margin: 2px;
-}
-.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove {
-    color: #fff;
-    border-right: none;
-    padding-right: 4px;
-}
-.select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove:hover {
-    background-color: transparent;
-    color: #fff;
-}
-html.dark-mode .select2-container--bootstrap-5 .select2-selection {
-    background-color: var(--card-bg);
-    border-color: var(--border-color);
-    color: var(--text-color);
-}
-html.dark-mode .select2-container--bootstrap-5 .select2-dropdown {
-    background-color: var(--card-bg);
-    border-color: var(--border-color);
-}
-html.dark-mode .select2-container--bootstrap-5 .select2-results__option {
-    color: var(--text-color);
-}
-html.dark-mode .select2-container--bootstrap-5 .select2-results__option--highlighted {
-    background-color: var(--main-color);
-}
-html.dark-mode .select2-container--bootstrap-5 .select2-search__field {
-    background-color: var(--card-bg);
-    color: var(--text-color);
-}
-/* === END SELECT2 STYLING === */
-
-/* --- Custom Modal Styling for Search/Checkboxes --- */
-.search-dropdown-container {
-    position: relative;
-    z-index: 1055; /* Higher z-index to overlay other elements */
-}
-.search-input-group {
-    margin-bottom: 0 !important;
-}
-.available-users-list {
-    position: absolute;
-    width: 100%;
-    max-height: 250px;
-    overflow-y: auto;
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    display: none; /* Hidden by default */
-}
-.available-users-list .list-item {
-    padding: 8px 15px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-.available-users-list .list-item:hover {
-    background-color: var(--hover-bg);
-}
-.available-users-list .list-item .form-check {
-    margin: 0;
-}
-
-/* Selected Badges Area */
-#selectedUsersBadges {
-    min-height: 40px;
-    padding: 8px;
-    border: 1px dashed var(--muted-text-color);
-    border-radius: 8px;
-    margin-top: 10px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    align-items: center;
-}
-.user-badge {
-    background-color: var(--main-color);
-    color: white;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    display: inline-flex;
-    align-items: center;
-}
-.user-badge .remove-btn {
-    background: none;
-    border: none;
-    color: white;
-    font-weight: bold;
-    margin-left: 5px;
-    padding: 0;
-    cursor: pointer;
-    font-size: 1rem;
-    line-height: 1;
-}
-
-/* === MOBILE RESPONSIVENESS ADJUSTMENTS === */
-@media (max-width: 767px) {
-    body { padding: 10px; }
-    .report-card { padding: 15px; }
-    .company-header { font-size: 1.5rem; margin-bottom: 1rem; }
-    h2 { font-size: 24px; margin-bottom: 20px; }
-    
-    /* Filters: Stack inputs on mobile */
-    .filter-section .row.g-3 > div {
-        margin-bottom: 8px;
-    }
-    
-    /* Buttons: Stack or make them fill width */
-    .filter-buttons {
-        flex-direction: column;
-        gap: 5px !important;
+    /* ================================================= */
+    /* ===== TEAL/NAVY MINIMALIST THEME (Matching admin_dashboard.php) ===== */
+    /* ================================================= */
+    :root {
+        /* --- LIGHT MODE (Teal Accent) --- */
+        --text-color: #2c3e50;
+        --bg-primary: #f7f9fb;
+        --card-bg: #ffffff;
+        --muted-text-color: #95a5a6;
+        --main-color: #1abc9c;
+        /* Primary: Deep Teal */
+        --main-hover: #148f77;
+        --accent: #3498db;
+        --error: #e74c3c;
+        --table-header: #1abc9c;
+        /* Use main-color directly for table */
+        --table-header-text: #ffffff;
+        --border-color: rgba(0, 0, 0, 0.1);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        --hover-bg: rgba(26, 188, 156, 0.05);
+        transition: all 0.5s ease;
     }
 
-    /* Adjust fixed button position for mobile */
-    .btn-back-to-dashboard-fixed {
-        top: 10px;
-        right: 10px;
-        font-size: 0.75rem;
-        padding: 5px 10px;
-    }
-    /* Move the theme switch even further left on mobile */
-    .theme-switch-wrapper {
-        right: 140px; 
-    }
-    
-    .report-info { font-size: 0.8rem; margin-bottom: 10px; padding-left: 5px; }
-}
-
-/* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
-@media print {
-    @page {
-        margin-top: 2cm;
-        size: A4 portrait;
+    html.dark-mode {
+        --text-color: #ecf0f1;
+        --bg-primary: #1c2833;
+        --card-bg: #2c3e50;
+        --muted-text-color: #bdc3c7;
+        --main-color: #1abc9c;
+        --main-hover: #16a085;
+        --accent: #3498db;
+        --error: #ff6b6b;
+        --table-header: #1abc9c;
+        --table-header-text: #ffffff;
+        --border-color: rgba(255, 255, 255, 0.1);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        --hover-bg: rgba(26, 188, 156, 0.1);
     }
 
-    * {
-        box-sizing: border-box;
+    body {
+        font-family: 'Poppins', sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-color);
+        padding: 20px;
+        transition: background-color 0.5s ease, color 0.5s ease;
     }
 
-    html, body { 
-        background: #fff; 
-        padding: 0;
-        margin: 0;
-        height: 100%;
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
-    /* Hide old print header - using new per-page header instead */
-    .print-header {
-        display: none !important;
-    }
-
-    /* Hide non-report elements including Select2 */
-    .company-header, .filter-section, .btn, .text-center a, .theme-switch-wrapper, .modal, .container-fluid > .report-card > h2,
-    .select2-container {
-        display:none !important;
-    }
-    
     .report-card {
-        box-shadow:none !important;
-        padding:0;
-        border:none;
-        max-width: 100% !important;
-        height: 100%;
-    }
-    
-    .table-responsive {
-        box-shadow:none !important;
-        padding:0;
-        border:none;
-        max-width: 100% !important;
-        overflow: visible !important;
-    }
-    
-    .container-fluid {
-        padding: 0 !important;
-        margin: 0 !important;
-        height: 100%;
-    }
-    
-    .user-report-section {
-        margin: 0 !important;
-        padding: 0 !important;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .user-report-section h4 {
-        margin: 0 0 1px 0 !important;
-        font-size: 8pt !important;
-        flex-shrink: 0;
-        page-break-after: avoid;
-        break-after: avoid;
+        background: var(--card-bg);
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        animation: fadeIn 0.8s ease-out;
+        transition: all 0.5s ease;
     }
 
-    /* Page break between user reports for clean multi-user printing */
-    .user-report-section:not(:last-child) {
-        page-break-after: always;
-        break-after: page;
-    }
-
-    .report-info {
-        display:block;
-        font-size: 8pt;
-        margin-bottom: 1px;
-        border-left: none;
-        padding-left: 0;
-        color: #000;
-        text-align: left;
-        flex-shrink: 0;
-        page-break-after: avoid;
-        break-after: avoid;
-    }
-    .report-info .user-name {
-        font-size: 8pt;
-        font-weight: 900;
-        color: #000;
-    }
-
-    .print-footer { 
-        display: block !important;
-        position: static;
-        margin-top: auto;
-        width: 100%; 
-        text-align: right; 
-        font-size: 6pt; 
-        padding: 1px 2px; 
-        color: #555;
-        flex-shrink: 0;
-    }
-
-    .table-responsive {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-    }
-
-    table { 
-        width: 100%; 
-        border-collapse: collapse; 
-        color: #000; 
-        table-layout: fixed;
-    }
-
-    th, td {
-        border: 0.5pt solid #444;
-        padding: 2px 3px; 
-        font-size: 7pt;
-        line-height: 1.2;
-        white-space: nowrap;
-        vertical-align: middle;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    /* Make rows stretch to fill available space */
-    tbody {
-        display: table-row-group;
-    }
-    
-    /* Row height - auto for short ranges, calculated for full month */
-    tbody tr {
-        height: auto;
-        min-height: 14px;
-    }
-    
-    /* Make date column show compact format */
-    td:nth-child(1) .date-full { display: none !important; }
-    td:nth-child(1) .date-compact { display: inline !important; }
-
-    /* Distribute column widths for A4 portrait */
-    th:nth-child(1), td:nth-child(1) { width: 12%; } /* Date - compact format */
-    th:nth-child(2), td:nth-child(2) { width: 10%; } /* Check-In Time */
-    th:nth-child(3), td:nth-child(3) { width: 21%; } /* Check-In Store */
-    th:nth-child(4), td:nth-child(4) { width: 10%; } /* Check-Out Time */
-    th:nth-child(5), td:nth-child(5) { width: 21%; } /* Check-Out Store */
-    th:nth-child(6), td:nth-child(6) { width: 10%; } /* Work Time */
-    th:nth-child(7), td:nth-child(7) { width: 10%; } /* Overtime */
-    
-    /* Allow store columns to wrap if needed */
-    th:nth-child(3), td:nth-child(3),
-    th:nth-child(5), td:nth-child(5) {
-        white-space: normal;
-        word-break: break-word;
-        font-size: 6.5pt;
-    }
-
-    .table-header-custom th, tfoot td { 
-        background-color: #ddd !important; 
-        color: #000 !important; 
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact; 
-        print-color-adjust: exact;
-        font-size: 7pt; 
-        font-weight: bold;
-        padding: 3px 3px;
-    }
-    
-    /* Remove striping for cleaner print */
-    .table-striped > tbody > tr:nth-of-type(odd) > * {
-        --bs-table-bg-type: transparent;
-    }
-    
-    /* Keep weekend highlight subtle */
-    .table-warning {
-        background-color: #f0f0f0 !important;
-    }
-    
-    /* Ensure footer fits on same page */
-    tfoot {
-        display: table-footer-group;
-    }
-    
-    /* Keep header with table */
-    thead {
-        display: table-header-group;
-    }
-    
-    /* Print page header - shown on each page */
-    .print-page-header {
-        display: block !important;
-        text-align: center;
-        margin-bottom: 3px;
-        color: #000;
-        border-bottom: 1.5pt solid #000;
-        padding-bottom: 2px;
-        flex-shrink: 0;
-    }
-    .print-page-header h1 {
-        font-size: 12pt;
+    .company-header {
+        color: var(--main-color);
+        font-size: 2rem;
         font-weight: 700;
-        margin: 0;
+        margin-bottom: 2rem;
+        text-align: center;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        width: 100%;
+    }
+
+    .company-header a {
+        color: inherit;
+        text-decoration: none;
+        transition: color 0.3s;
+    }
+
+    .company-header a:hover {
+        color: var(--main-hover);
+    }
+
+    h2 {
+        font-size: 30px;
+        font-weight: 700;
+        color: var(--main-color);
+        margin-bottom: 30px;
+        text-align: center;
+        transition: color 0.5s;
         text-transform: uppercase;
     }
-    .print-page-header p {
-        font-size: 8pt;
-        margin: 1px 0 0 0;
-        font-weight: 500;
+
+    /* --- Custom Filter Button Style (Teal) --- */
+    .btn-primary-custom {
+        background-color: var(--main-color);
+        border-color: var(--main-color);
+        color: var(--table-header-text);
+        /* White */
+        font-weight: 600;
     }
-}
-</style>
+
+    .btn-primary-custom:hover {
+        background-color: var(--main-hover);
+        border-color: var(--main-hover);
+        color: var(--table-header-text);
+    }
+
+    /* --- END Custom Filter Button Style --- */
+
+
+    .report-info {
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.9rem;
+        margin-bottom: 20px;
+        color: var(--muted-text-color);
+        padding-left: 10px;
+        border-left: 4px solid var(--main-color);
+        transition: all 0.5s ease;
+    }
+
+    .report-info span {
+        color: var(--main-color);
+        transition: color 0.5s;
+    }
+
+    /* Date display toggle - show full on screen, compact on print */
+    .date-full {
+        display: inline;
+    }
+
+    .date-compact {
+        display: none;
+    }
+
+    /* Hide print page header on screen */
+    .print-page-header {
+        display: none;
+    }
+
+    /* Table styles */
+    .table-responsive {
+        border-radius: 8px;
+        overflow-x: auto;
+        border: 1px solid var(--border-color);
+    }
+
+    .table {
+        margin-bottom: 0;
+        color: var(--text-color);
+        min-width: 700px;
+    }
+
+    /* Updated for smaller screen font and no wrap */
+    .table-header-custom th {
+        background-color: var(--table-header);
+        color: var(--table-header-text);
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        border-bottom: 2px solid var(--main-hover);
+        border-color: var(--border-color) !important;
+        white-space: nowrap;
+    }
+
+    /* Updated for smaller screen padding */
+    .table tbody tr td {
+        padding: 0.35rem 0.5rem;
+    }
+
+
+    tfoot td {
+        font-weight: 700;
+        background-color: var(--main-color) !important;
+        color: var(--table-header-text) !important;
+    }
+
+    /* Add custom class for Friday/Weekend row */
+    .table-warning {
+        --bs-table-bg-type: var(--bs-warning-rgb);
+        background-color: rgba(255, 193, 7, 0.1) !important;
+    }
+
+    /* Custom color for OT text */
+    .text-overtime {
+        color: var(--error);
+        font-weight: 600;
+    }
+
+    /* Dark Mode Switch Styling */
+    .theme-switch-wrapper {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    /* === PRINT BUTTON STYLE (RED) === */
+    .btn-print-options {
+        background-color: #e74c3c;
+        /* Red/Error Color */
+        border-color: #e74c3c;
+        color: #ffffff;
+        /* White text */
+    }
+
+    .btn-print-options:hover {
+        background-color: #c0392b;
+        /* Darker Red on hover */
+        border-color: #c0392b;
+        color: #ffffff;
+    }
+
+    /* === END PRINT BUTTON STYLE === */
+
+    /* === BACK TO DASHBOARD FIXED BUTTON (NEW) === */
+    .btn-back-to-dashboard-fixed {
+        position: fixed;
+        top: 15px;
+        right: 15px;
+        z-index: 1010;
+        font-weight: 600;
+        padding: 8px 15px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        background-color: var(--card-bg);
+        border-color: var(--main-color);
+        color: var(--main-color);
+        box-shadow: var(--shadow);
+    }
+
+    .btn-back-to-dashboard-fixed:hover {
+        background-color: var(--main-color);
+        color: var(--table-header-text);
+    }
+
+    /* Hide the fixed button completely during print */
+    @media print {
+        .btn-back-to-dashboard-fixed {
+            display: none !important;
+        }
+    }
+
+    /* Move the theme switch slightly to the left to avoid collision */
+    .theme-switch-wrapper {
+        right: 180px;
+    }
+
+    /* === END FIXED BUTTON === */
+
+    /* === SELECT2 CUSTOM STYLING === */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 31px !important;
+        font-size: 0.875rem;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
+        padding: 2px 4px;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+        background-color: var(--main-color);
+        border: none;
+        color: #fff;
+        font-size: 0.8rem;
+        padding: 2px 8px;
+        margin: 2px;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove {
+        color: #fff;
+        border-right: none;
+        padding-right: 4px;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove:hover {
+        background-color: transparent;
+        color: #fff;
+    }
+
+    html.dark-mode .select2-container--bootstrap-5 .select2-selection {
+        background-color: var(--card-bg);
+        border-color: var(--border-color);
+        color: var(--text-color);
+    }
+
+    html.dark-mode .select2-container--bootstrap-5 .select2-dropdown {
+        background-color: var(--card-bg);
+        border-color: var(--border-color);
+    }
+
+    html.dark-mode .select2-container--bootstrap-5 .select2-results__option {
+        color: var(--text-color);
+    }
+
+    html.dark-mode .select2-container--bootstrap-5 .select2-results__option--highlighted {
+        background-color: var(--main-color);
+    }
+
+    html.dark-mode .select2-container--bootstrap-5 .select2-search__field {
+        background-color: var(--card-bg);
+        color: var(--text-color);
+    }
+
+    /* === END SELECT2 STYLING === */
+
+    /* --- Custom Modal Styling for Search/Checkboxes --- */
+    .search-dropdown-container {
+        position: relative;
+        z-index: 1055;
+        /* Higher z-index to overlay other elements */
+    }
+
+    .search-input-group {
+        margin-bottom: 0 !important;
+    }
+
+    .available-users-list {
+        position: absolute;
+        width: 100%;
+        max-height: 250px;
+        overflow-y: auto;
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        display: none;
+        /* Hidden by default */
+    }
+
+    .available-users-list .list-item {
+        padding: 8px 15px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .available-users-list .list-item:hover {
+        background-color: var(--hover-bg);
+    }
+
+    .available-users-list .list-item .form-check {
+        margin: 0;
+    }
+
+    /* Selected Badges Area */
+    #selectedUsersBadges {
+        min-height: 40px;
+        padding: 8px;
+        border: 1px dashed var(--muted-text-color);
+        border-radius: 8px;
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        align-items: center;
+    }
+
+    .user-badge {
+        background-color: var(--main-color);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .user-badge .remove-btn {
+        background: none;
+        border: none;
+        color: white;
+        font-weight: bold;
+        margin-left: 5px;
+        padding: 0;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+    }
+
+    /* === MOBILE RESPONSIVENESS ADJUSTMENTS === */
+    @media (max-width: 767px) {
+        body {
+            padding: 10px;
+        }
+
+        .report-card {
+            padding: 15px;
+        }
+
+        .company-header {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        /* Filters: Stack inputs on mobile */
+        .filter-section .row.g-3>div {
+            margin-bottom: 8px;
+        }
+
+        /* Buttons: Stack or make them fill width */
+        .filter-buttons {
+            flex-direction: column;
+            gap: 5px !important;
+        }
+
+        /* Adjust fixed button position for mobile */
+        .btn-back-to-dashboard-fixed {
+            top: 10px;
+            right: 10px;
+            font-size: 0.75rem;
+            padding: 5px 10px;
+        }
+
+        /* Move the theme switch even further left on mobile */
+        .theme-switch-wrapper {
+            right: 140px;
+        }
+
+        .report-info {
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+            padding-left: 5px;
+        }
+    }
+
+    /* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
+    @media print {
+        @page {
+            margin-top: 2cm;
+            size: A4 portrait;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            background: #fff;
+            padding: 0;
+            margin: 0;
+            height: 100%;
+        }
+
+        /* Hide old print header - using new per-page header instead */
+        .print-header {
+            display: none !important;
+        }
+
+        /* Hide non-report elements including Select2 */
+        .company-header,
+        .filter-section,
+        .btn,
+        .text-center a,
+        .theme-switch-wrapper,
+        .modal,
+        .container-fluid>.report-card>h2,
+        .select2-container {
+            display: none !important;
+        }
+
+        .report-card {
+            box-shadow: none !important;
+            padding: 0;
+            border: none;
+            max-width: 100% !important;
+            height: 100%;
+        }
+
+        .table-responsive {
+            box-shadow: none !important;
+            padding: 0;
+            border: none;
+            max-width: 100% !important;
+            overflow: visible !important;
+        }
+
+        .container-fluid {
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 100%;
+        }
+
+        .user-report-section {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-report-section h4 {
+            margin: 0 0 1px 0 !important;
+            font-size: 8pt !important;
+            flex-shrink: 0;
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+
+        /* Page break between user reports for clean multi-user printing */
+        .user-report-section:not(:last-child) {
+            page-break-after: always;
+            break-after: page;
+        }
+
+        .report-info {
+            display: block;
+            font-size: 8pt;
+            margin-bottom: 1px;
+            border-left: none;
+            padding-left: 0;
+            color: #000;
+            text-align: left;
+            flex-shrink: 0;
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+
+        .report-info .user-name {
+            font-size: 8pt;
+            font-weight: 900;
+            color: #000;
+        }
+
+        .print-footer {
+            display: block !important;
+            position: static;
+            margin-top: auto;
+            width: 100%;
+            text-align: right;
+            font-size: 6pt;
+            padding: 1px 2px;
+            color: #555;
+            flex-shrink: 0;
+        }
+
+        .table-responsive {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #000;
+            table-layout: fixed;
+        }
+
+        th,
+        td {
+            border: 0.5pt solid #444;
+            padding: 2px 3px;
+            font-size: 7pt;
+            line-height: 1.2;
+            white-space: nowrap;
+            vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Make rows stretch to fill available space */
+        tbody {
+            display: table-row-group;
+        }
+
+        /* Row height - auto for short ranges, calculated for full month */
+        tbody tr {
+            height: auto;
+            min-height: 14px;
+        }
+
+        /* Make date column show compact format */
+        td:nth-child(1) .date-full {
+            display: none !important;
+        }
+
+        td:nth-child(1) .date-compact {
+            display: inline !important;
+        }
+
+        /* Distribute column widths for A4 portrait */
+        th:nth-child(1),
+        td:nth-child(1) {
+            width: 12%;
+        }
+
+        /* Date - compact format */
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: 10%;
+        }
+
+        /* Check-In Time */
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: 21%;
+        }
+
+        /* Check-In Store */
+        th:nth-child(4),
+        td:nth-child(4) {
+            width: 10%;
+        }
+
+        /* Check-Out Time */
+        th:nth-child(5),
+        td:nth-child(5) {
+            width: 21%;
+        }
+
+        /* Check-Out Store */
+        th:nth-child(6),
+        td:nth-child(6) {
+            width: 10%;
+        }
+
+        /* Work Time */
+        th:nth-child(7),
+        td:nth-child(7) {
+            width: 10%;
+        }
+
+        /* Overtime */
+
+        /* Allow store columns to wrap if needed */
+        th:nth-child(3),
+        td:nth-child(3),
+        th:nth-child(5),
+        td:nth-child(5) {
+            white-space: normal;
+            word-break: break-word;
+            font-size: 6.5pt;
+        }
+
+        .table-header-custom th,
+        tfoot td {
+            background-color: #ddd !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            color-adjust: exact;
+            print-color-adjust: exact;
+            font-size: 7pt;
+            font-weight: bold;
+            padding: 3px 3px;
+        }
+
+        /* Remove striping for cleaner print */
+        .table-striped>tbody>tr:nth-of-type(odd)>* {
+            --bs-table-bg-type: transparent;
+        }
+
+        /* Keep weekend highlight subtle */
+        .table-warning {
+            background-color: #f0f0f0 !important;
+        }
+
+        /* Ensure footer fits on same page */
+        tfoot {
+            display: table-footer-group;
+        }
+
+        /* Keep header with table */
+        thead {
+            display: table-header-group;
+        }
+
+        /* Print page header - shown on each page */
+        .print-page-header {
+            display: block !important;
+            text-align: center;
+            margin-bottom: 3px;
+            color: #000;
+            border-bottom: 1.5pt solid #000;
+            padding-bottom: 2px;
+            flex-shrink: 0;
+        }
+
+        .print-page-header h1 {
+            font-size: 12pt;
+            font-weight: 700;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .print-page-header p {
+            font-size: 8pt;
+            margin: 1px 0 0 0;
+            font-weight: 500;
+        }
+    }
+    </style>
 </head>
+
 <body>
-
-<a href="admin_dashboard.php" class="btn btn-outline-secondary btn-sm btn-back-to-dashboard-fixed">
-    <i class="fas fa-arrow-left"></i> Dashboard
-</a>
-<div class="theme-switch-wrapper">
-    <label class="theme-switch" for="theme-toggle" title="Toggle Dark/Light Mode">
-        <input type="checkbox" id="theme-toggle">
-        <div class="slider round"></div>
-    </label>
-</div>
-
-<div class="company-header">
-    <a href="admin_dashboard.php">
-        <i class="fas fa-shield-alt me-2"></i>Vision Angles</a>
-</div>
-
-<div class="container-fluid py-4">
-    
-    <div class="print-header" style="display:none;">
-        <h1>Attendance Report</h1>
+<aside class="sidebar d-print-none d-lg-flex">
+    <div class="sidebar-header">
+        <i class="fas fa-cubes me-2"></i>Vision Angles
     </div>
 
-    <div class="report-card mx-auto" style="max-width: 1400px;">
-        <h2 class="text-center"><i class="fas fa-chart-line me-2"></i> Attendance Report</h2>
+    <nav class="sidebar-nav">
+        <a href="admin_dashboard.php" class="nav-link ">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        
+        <a href="attendance_requests.php" class="nav-link">
+            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
+            <?php 
+            if ($pending_corrections > 0 && !$corrections_dismissed): 
+            ?>
+                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
+            <?php endif; ?>
+        </a>
+        
+        <a href="reset_requests.php" class="nav-link">
+            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
+            <?php 
+            if ($pending_resets > 0 && !$resets_dismissed): 
+            ?>
+                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
+            <?php endif; ?>
+        </a>
 
-        <div class="filter-section mb-3">
-            <form method="GET" class="row g-3 align-items-end">
-                <div class="col-12 col-md-3">
-                    <label for="user-select" class="form-label visually-hidden">User</label>
-                    <select id="user-select" name="user[]" class="form-select form-select-sm" multiple="multiple">
-                        <?php foreach ($users as $u): ?>
-                        <option value="<?= $u['id'] ?>" <?= in_array($u['id'], $filter_user_array) ? 'selected' : '' ?>><?= htmlspecialchars($u['full_name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <div class="col-12 col-md-3">
-                    <label for="range-select" class="form-label visually-hidden">Date Range</label>
-                    <select id="range-select" name="range" class="form-select form-select-sm">
-                        <option value="current_month" <?= ($date_range_preset === 'current_month')?'selected':'' ?>>Current Month</option>
-                        <option value="last_month" <?= ($date_range_preset === 'last_month')?'selected':'' ?>>Last Month</option>
-                        <option value="custom" <?= ($date_range_preset === 'custom')?'selected':'' ?>>Custom Date Range</option>
-                    </select>
-                </div>
 
-                <div class="col-6 col-md-2 custom-date-fields" style="<?= ($date_range_preset !== 'custom') ? 'display:none;' : '' ?>">
-                    <label for="start-date" class="form-label visually-hidden">Start Date</label>
-                    <input id="start-date" type="date" name="start" placeholder="Start Date" value="<?= htmlspecialchars($start_date) ?>" class="form-control form-control-sm">
-                </div>
-                <div class="col-6 col-md-2 custom-date-fields" style="<?= ($date_range_preset !== 'custom') ? 'display:none;' : '' ?>">
-                    <label for="end-date" class="form-label visually-hidden">End Date</label>
-                    <input id="end-date" type="date" name="end" placeholder="End Date" value="<?= htmlspecialchars($end_date) ?>" class="form-control form-control-sm">
-                </div>
-                
-                <div class="col-12 col-md-4 d-flex gap-2 filter-buttons">
-                    <button type="submit" class="btn btn-primary-custom btn-sm flex-fill">Filter <i class="fas fa-filter"></i></button>
-                    <a href="attendance_report.php" class="btn btn-outline-secondary btn-sm flex-fill">Clear</a>
-                    <button type="button" class="btn btn-print-options btn-sm flex-fill" onclick="window.print()">
-                        Print <i class="fas fa-print"></i>
-                    </button>
-                </div>
-            </form>
+        <span class="sidebar-title">User Management</span>
+        <a href="manage_user.php" class="nav-link">
+            <i class="fa-solid fa-users-gear"></i> Manage Users
+        </a>
+        <a href="add_user.php" class="nav-link">
+            <i class="fa-solid fa-user-plus"></i> Add New User
+        </a>
+        <a href="manage_department.php" class="nav-link">
+            <i class="fa-solid fa-sitemap"></i> Manage Department
+        </a>
+
+        <span class="sidebar-title">Reporting & Logs</span>
+        <a href="attendance_report.php" class="nav-link active">
+            <i class="fa-solid fa-chart-line"></i> Attendance Reports
+        </a>
+        <a href="logs.php" class="nav-link">
+            <i class="fa-solid fa-bug"></i> Activity Logs
+        </a>
+    </nav>
+
+    <div class="sidebar-footer d-none d-lg-block"> 
+        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
+        
+        <a href="logout.php" class="btn logout-btn-footer">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</aside>
+ <div class="container-fluid py-4">
+
+        <div class="print-header" style="display:none;">
+            <h1>Attendance Report</h1>
         </div>
 
-        <?php 
+        <div class="report-card mx-auto" style="max-width: 1400px;">
+            <h2 class="text-center"><i class="fas fa-chart-line me-2"></i> Attendance Report</h2>
+
+            <div class="filter-section mb-3">
+                <form method="GET" class="row g-3 align-items-end">
+                    <div class="col-12 col-md-3">
+                        <label for="user-select" class="form-label visually-hidden">User</label>
+                        <select id="user-select" name="user[]" class="form-select form-select-sm" multiple="multiple">
+                            <?php foreach ($users as $u): ?>
+                            <option value="<?= $u['id'] ?>"
+                                <?= in_array($u['id'], $filter_user_array) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($u['full_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <label for="range-select" class="form-label visually-hidden">Date Range</label>
+                        <select id="range-select" name="range" class="form-select form-select-sm">
+                            <option value="current_month" <?= ($date_range_preset === 'current_month')?'selected':'' ?>>
+                                Current Month</option>
+                            <option value="last_month" <?= ($date_range_preset === 'last_month')?'selected':'' ?>>Last
+                                Month</option>
+                            <option value="custom" <?= ($date_range_preset === 'custom')?'selected':'' ?>>Custom Date
+                                Range</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-2 custom-date-fields"
+                        style="<?= ($date_range_preset !== 'custom') ? 'display:none;' : '' ?>">
+                        <label for="start-date" class="form-label visually-hidden">Start Date</label>
+                        <input id="start-date" type="date" name="start" placeholder="Start Date"
+                            value="<?= htmlspecialchars($start_date) ?>" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-6 col-md-2 custom-date-fields"
+                        style="<?= ($date_range_preset !== 'custom') ? 'display:none;' : '' ?>">
+                        <label for="end-date" class="form-label visually-hidden">End Date</label>
+                        <input id="end-date" type="date" name="end" placeholder="End Date"
+                            value="<?= htmlspecialchars($end_date) ?>" class="form-control form-control-sm">
+                    </div>
+
+                    <div class="col-12 col-md-4 d-flex gap-2 filter-buttons">
+                        <button type="submit" class="btn btn-primary-custom btn-sm flex-fill">Filter <i
+                                class="fas fa-filter"></i></button>
+                        <a href="attendance_report.php" class="btn btn-outline-secondary btn-sm flex-fill">Clear</a>
+                        <button type="button" class="btn btn-print-options btn-sm flex-fill" onclick="window.print()">
+                            Print <i class="fas fa-print"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <?php 
         // Determine what is being displayed for the header
         $report_name = 'All Users ';
         $is_multi_report = count($reports_output) > 1;
@@ -964,24 +1227,24 @@ html.dark-mode .select2-container--bootstrap-5 .select2-search__field {
         }
         ?>
 
-        <?php if (!$is_multi_report): ?>
-        <div class="report-info">
-            REPORT: <span><?= $report_name ?></span> | 
-            PERIOD: <span><?= $filtered_month_year_display ?></span>
-        </div>
-        <?php endif; ?>
+            <?php if (!$is_multi_report): ?>
+            <div class="report-info">
+                REPORT: <span><?= $report_name ?></span> |
+                PERIOD: <span><?= $filtered_month_year_display ?></span>
+            </div>
+            <?php endif; ?>
 
 
-    <?php foreach ($reports_output as $report): ?>
-    
-    <div class="user-report-section my-4">
-        <!-- Print header for each page -->
-        <div class="print-page-header">
-            <h1>Attendance Report</h1>
-            <p><?= $filtered_month_year_display ?></p>
-        </div>
-        
-        <?php 
+            <?php foreach ($reports_output as $report): ?>
+
+            <div class="user-report-section my-4">
+                <!-- Print header for each page -->
+                <div class="print-page-header">
+                    <h1>Attendance Report</h1>
+                    <p><?= $filtered_month_year_display ?></p>
+                </div>
+
+                <?php 
             // Display employee name and period for each separate report
             $user_period_info = '';
             if ($is_multi_report) {
@@ -992,24 +1255,34 @@ html.dark-mode .select2-container--bootstrap-5 .select2-search__field {
             }
         ?>
 
-        <?php if ($user_period_info): ?>
-        <h4 class="mb-3 text-center" style="color:var(--main-hover); font-weight:600; text-transform:uppercase;">
-            <span class="report-info user-name d-block mb-1"><?= $user_period_info ?></span>
-        </h4>
-        <?php endif; ?>
-        
-        <div class="table-responsive">
-        <table class="table table-bordered table-striped align-middle table-sm" style="font-size:0.85rem;">
-            <thead class="table-header-custom">
-                <tr>
-                    <th>DATE</th><th>CHECK-IN</th><th>CHECK-IN STORE</th><th>CHECK-OUT</th><th>CHECK-OUT STORE</th><th>WORK TIME</th><th>OVERTIME</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if(!$report['has_records']): ?>
-                <tr><td colspan="7" class="text-center py-4 text-muted">No attendance records found for <?= htmlspecialchars($report['name']) ?> in this period.</td></tr>
-                <?php else: ?>
-                <?php foreach ($report['summary_data'] as $day => $val):
+                <?php if ($user_period_info): ?>
+                <h4 class="mb-3 text-center"
+                    style="color:var(--main-hover); font-weight:600; text-transform:uppercase;">
+                    <span class="report-info user-name d-block mb-1"><?= $user_period_info ?></span>
+                </h4>
+                <?php endif; ?>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped align-middle table-sm" style="font-size:0.85rem;">
+                        <thead class="table-header-custom">
+                            <tr>
+                                <th>DATE</th>
+                                <th>CHECK-IN</th>
+                                <th>CHECK-IN STORE</th>
+                                <th>CHECK-OUT</th>
+                                <th>CHECK-OUT STORE</th>
+                                <th>WORK TIME</th>
+                                <th>OVERTIME</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if(!$report['has_records']): ?>
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No attendance records found for
+                                    <?= htmlspecialchars($report['name']) ?> in this period.</td>
+                            </tr>
+                            <?php else: ?>
+                            <?php foreach ($report['summary_data'] as $day => $val):
                     $highlight_class = $val['is_weekend'] ? ' table-warning' : ''; 
                     
                     // Check if there are any real records for the day (not just the initialized placeholder array ['-'])
@@ -1021,102 +1294,83 @@ html.dark-mode .select2-container--bootstrap-5 .select2-search__field {
                     $checkin_store_content = $has_work ? implode('<br>', $val['checkin_stores']) : '-';
                     $checkout_store_content = $has_work ? implode('<br>', $val['checkout_stores']) : '-';
                     ?>
-                    <tr class="<?= trim($highlight_class . ' ' . $row_class) ?>">
-                        <td class="fw-bold">
-                            <span class="date-full" style="white-space: nowrap;"><?= date('d-m-Y, D', strtotime($day)) ?></span>
-                            <span class="date-compact" style="display: none; white-space: nowrap;"><?= date('d M, D', strtotime($day)) ?></span>
-                        </td>
-                        
-                        <td><?= $checkin_content ?></td>
-                        <td><?= $checkin_store_content ?></td>
-                        <td><?= $checkout_content ?></td>
-                        <td><?= $checkout_store_content ?></td>
-                        
-                        <td class="fw-bold">
-                            <?= ($val['is_weekend'] && $has_work) ? '-' : fmt($val['total_elapsed']) ?>
-                        </td>
-                        
-                        <td class="<?= $val['overtime']>0?'text-overtime':'' ?>">
-                            <?= fmt($val['overtime']) ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-            <tfoot class="table-header-custom">
-                <tr>
-                    <td colspan="5" class="text-end">TOTAL TIME FOR <?= htmlspecialchars($report['name']) ?></td>
-                    <td><?= fmt($report['total_work']) ?></td> 
-                    <td class="text-overtime"><?= fmt($report['total_ot']) ?></td>
-                </tr>
-            </tfoot>
-        </table>
+                            <tr class="<?= trim($highlight_class . ' ' . $row_class) ?>">
+                                <td class="fw-bold">
+                                    <span class="date-full"
+                                        style="white-space: nowrap;"><?= date('d-m-Y, D', strtotime($day)) ?></span>
+                                    <span class="date-compact"
+                                        style="display: none; white-space: nowrap;"><?= date('d M, D', strtotime($day)) ?></span>
+                                </td>
+
+                                <td><?= $checkin_content ?></td>
+                                <td><?= $checkin_store_content ?></td>
+                                <td><?= $checkout_content ?></td>
+                                <td><?= $checkout_store_content ?></td>
+
+                                <td class="fw-bold">
+                                    <?= ($val['is_weekend'] && $has_work) ? '-' : fmt($val['total_elapsed']) ?>
+                                </td>
+
+                                <td class="<?= $val['overtime']>0?'text-overtime':'' ?>">
+                                    <?= fmt($val['overtime']) ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                        <tfoot class="table-header-custom">
+                            <tr>
+                                <td colspan="5" class="text-end">TOTAL TIME FOR <?= htmlspecialchars($report['name']) ?>
+                                </td>
+                                <td><?= fmt($report['total_work']) ?></td>
+                                <td class="text-overtime"><?= fmt($report['total_ot']) ?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <?php endforeach; ?>
         </div>
-    </div>
-    
-    <?php endforeach; ?>
-    </div>
 
 
 
     </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script>
-// --- Dark Mode Toggle Script ---
-const toggleSwitch = document.getElementById('theme-toggle');
-// Load theme from localStorage or system preference
-const currentTheme = localStorage.getItem('theme') ? localStorage.getItem('theme') :
-    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    // --- Date Range Dropdown Logic ---
+    function setupDateRangeLogic(rangeSelectId, customFieldsClass) {
+        const rangeSelect = document.getElementById(rangeSelectId);
+        const customDateFields = document.querySelectorAll(customFieldsClass);
 
-if (currentTheme === 'dark') {
-    document.documentElement.classList.add('dark-mode');
-    toggleSwitch.checked = true;
-}
+        function toggleCustomDates() {
+            const isCustom = rangeSelect.value === 'custom';
+            customDateFields.forEach(field => {
+                field.style.display = isCustom ? 'block' : 'none';
+            });
+        }
 
-toggleSwitch.addEventListener('change', function() {
-    if (this.checked) {
-        document.documentElement.classList.add('dark-mode');
-        localStorage.setItem('theme', 'dark');
-    } else {
-        document.documentElement.classList.remove('dark-mode');
-        localStorage.setItem('theme', 'light');
+        if (rangeSelect) {
+            rangeSelect.addEventListener('change', toggleCustomDates);
+            toggleCustomDates(); // Set initial state
+        }
     }
-});
 
+    document.addEventListener('DOMContentLoaded', () => {
+        setupDateRangeLogic('range-select', '.custom-date-fields');
 
-// --- Date Range Dropdown Logic ---
-function setupDateRangeLogic(rangeSelectId, customFieldsClass) {
-    const rangeSelect = document.getElementById(rangeSelectId);
-    const customDateFields = document.querySelectorAll(customFieldsClass);
-
-    function toggleCustomDates() {
-        const isCustom = rangeSelect.value === 'custom';
-        customDateFields.forEach(field => {
-            field.style.display = isCustom ? 'block' : 'none';
+        // Initialize Select2 for multi-select user dropdown
+        $('#user-select').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Select users (leave empty for all)',
+            allowClear: true,
+            width: '100%'
         });
-    }
-
-    if (rangeSelect) {
-        rangeSelect.addEventListener('change', toggleCustomDates);
-        toggleCustomDates(); // Set initial state
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    setupDateRangeLogic('range-select', '.custom-date-fields');
-    
-    // Initialize Select2 for multi-select user dropdown
-    $('#user-select').select2({
-        theme: 'bootstrap-5',
-        placeholder: 'Select users (leave empty for all)',
-        allowClear: true,
-        width: '100%'
     });
-});
-
-</script>
+    </script>
 </body>
+
 </html>

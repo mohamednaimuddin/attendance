@@ -94,6 +94,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error) {
     $is_admin = isset($_POST['is_admin']) ? 1 : 0;
     $department = $_POST['department'] ?? '';
 }
+// ===================================================
+// --- DATABASE COUNTS (CORRECTIONS & RESETS) ---
+// ===================================================
+
+$pending_resets = 0;
+$pending_corrections = 0;
+
+// ✅ Ensure both mysqli and PDO support (depending on config.php)
+if (isset($conn) && $conn instanceof mysqli) {
+    // --- Using mysqli ---
+    try {
+        // Pending password reset requests
+        $sql_resets = "SELECT COUNT(*) AS total FROM password_reset_requests WHERE status = 'PENDING'";
+        $res_resets = mysqli_query($conn, $sql_resets);
+        if ($res_resets && $row = mysqli_fetch_assoc($res_resets)) {
+            $pending_resets = (int)$row['total'];
+        }
+
+        // Pending correction requests
+        $sql_corrections = "SELECT COUNT(*) AS total FROM correction_requests WHERE status = 'PENDING'";
+        $res_corrections = mysqli_query($conn, $sql_corrections);
+        if ($res_corrections && $row = mysqli_fetch_assoc($res_corrections)) {
+            $pending_corrections = (int)$row['total'];
+        }
+    } catch (Exception $e) {
+        error_log("MySQLi DB Error: " . $e->getMessage());
+    }
+} elseif (isset($pdo) && $pdo instanceof PDO) {
+    // --- Using PDO ---
+    try {
+        $stmt1 = $pdo->query("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING'");
+        $pending_resets = (int)$stmt1->fetchColumn();
+
+        $stmt2 = $pdo->query("SELECT COUNT(*) FROM correction_requests WHERE status = 'PENDING'");
+        $pending_corrections = (int)$stmt2->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("PDO DB Error: " . $e->getMessage());
+    }
+} else {
+    error_log("❌ No valid DB connection found in config.php");
+}
+
+// ===================================================
+// --- ADMIN NAME & TOTAL ALERTS ---
+// ===================================================
+$admin_name = $_SESSION['full_name'] ?? 'Admin';
+
+// Count all active alerts that are not dismissed
+$total_alerts = 0;
+if ($pending_corrections > 0 && !$corrections_dismissed) {
+    $total_alerts += $pending_corrections;
+}
+if ($pending_resets > 0 && !$resets_dismissed) {
+    $total_alerts += $pending_resets;
+}
+// ===================================================
+// --- MOBILE HEADER CONTENT ---
+// ===================================================
+$mobile_footer_content = '
+<div class="dropdown d-inline-block d-lg-none ms-2">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Settings">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 py-2">
+            <span class="welcome-text text-dark d-block">Welcome, ' . htmlspecialchars($admin_name) . '</span>
+        </li>
+        <li class="dropdown-divider"></li>
+        <li class="px-3 py-1">
+            <a href="logout.php" class="btn btn-sm btn-danger w-100">
+                <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+            </a>
+        </li>
+    </ul>
+</div>
+';
+?>
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -107,283 +184,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error) {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="icon" type="image/png" href="visionnew.png">
-<style>
-/* ================================================= */
-/* ===== SLEEK MINIMALIST THEME (TEAL/NAVY) - Applied from admin_dashboard.php ===== */
-/* ================================================= */
-
-/* ===== Global Variables (Light Mode Default) ===== */
-:root {
-    --text-color: #34495e; /* Corporate Navy Text */
-    --bg-primary: #f4f7fa; /* Very Light Background */
-    --card-bg: #ffffff;
-    --accent-color: #009688; /* Primary Teal Accent */
-    --accent-hover: #00796b;
-    --error-color: #e74c3c;
-    --success-color: #2ecc71; /* Brighter Green for Success */
-    --border-color: rgba(0, 0, 0, 0.08);
-    --shadow-light: 0 4px 12px rgba(0,0,0,0.05);
-    --shadow-hover: 0 8px 16px rgba(0,0,0,0.15); 
-    --nav-bg: #ffffff;
-    --text-muted-color: #95a5a6; /* Silver/Gray */
-    --form-input-bg: #f8f9fa; /* Light background for inputs */
-    transition: all 0.5s ease;
-}
-
-/* ===== Dark Mode Variables (Teal/Navy Dark) ===== */
-html.dark-mode {
-    --text-color: #ecf0f1; 
-    --bg-primary: #1b2029; /* Deep Slate Background */
-    --card-bg: #2d3846; /* Darker Card Background */
-    --accent-color: #4db6ac; /* Lighter Teal Accent */
-    --accent-hover: #26a69a;
-    --error-color: #ff6b6b;
-    --success-color: #48c9b0; /* Lighter Teal Green */
-    --border-color: rgba(255, 255, 255, 0.1);
-    --shadow-light: 0 4px 12px rgba(0,0,0,0.3);
-    --shadow-hover: 0 8px 20px rgba(0,0,0,0.5); 
-    --nav-bg: #2d3846;
-    --text-muted-color: #bdc3c7;
-    --form-input-bg: rgba(255, 255, 255, 0.08); /* Dark background for inputs */
-}
-
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg-primary);
-    color: var(--text-color);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    transition: background-color 0.5s ease, color 0.5s ease;
-}
-
-/* ===== Form Container and Card Styling (UPDATED SHADOWS/COLORS) ===== */
-.form-container {
-    max-width: 500px;
-    width: 90%;
-    padding: 2.5rem; 
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px; 
-    box-shadow: var(--shadow-light);
-    transition: all 0.5s ease;
-}
-
-.form-container h2 {
-    text-align: center;
-    color: var(--accent-color); /* Teal Accent */
-    font-weight: 800;
-    margin-bottom: 2rem;
-    letter-spacing: -0.5px;
-    transition: color 0.5s ease;
-}
-
-/* ===== Input Group Styling (Teal Focus) ===== */
-.input-group-custom {
-    margin-bottom: 1.5rem;
-    position: relative;
-}
-.input-group-custom .form-control, 
-.input-group-custom select.form-control {
-    appearance: none; 
-    width: 100%;
-    padding: 14px 18px;
-    padding-left: 50px; 
-    border-radius: 8px; 
-    border: 1px solid var(--border-color);
-    background: var(--form-input-bg);
-    color: var(--text-color);
-    font-size: 1rem;
-    outline: none;
-    transition: border-color 0.4s, box-shadow 0.4s, background 0.5s;
-    
-    /* Custom Arrow for Select (Light Mode) */
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2334495e' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 1.25rem center;
-    background-size: 10px;
-}
-html.dark-mode .input-group-custom select.form-control {
-    /* Custom Arrow for Select (Dark Mode) */
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ecf0f1' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
-}
-.input-group-custom .form-control::placeholder {
-    color: var(--text-muted-color);
-}
-.input-group-custom .form-control:focus {
-    border-color: var(--accent-color);
-    box-shadow: 0 0 8px rgba(0, 150, 136, 0.3); /* Teal glow */
-    background-color: var(--card-bg); 
-}
-html.dark-mode .input-group-custom .form-control:focus {
-     box-shadow: 0 0 8px rgba(77, 182, 172, 0.4); /* Dark mode Teal glow */
-}
-
-.input-group-custom i {
-    position: absolute;
-    left: 18px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted-color);
-    transition: color 0.3s ease;
-    z-index: 10;
-}
-.input-group-custom .form-control:focus + i {
-    color: var(--accent-color);
-}
-
-/* ===== Checkbox Styling (Refined) ===== */
-.form-check {
-    margin-bottom: 1.5rem;
-    padding-left: 0;
-    display: flex;
-    align-items: center;
-    color: var(--text-color);
-}
-.form-check-input {
-    width: 1.25em;
-    height: 1.25em;
-    margin-right: 0.75rem;
-    background-color: var(--form-input-bg);
-    border: 1px solid var(--border-color);
-    transition: background-color 0.3s, border-color 0.3s;
-}
-.form-check-input:checked {
-    background-color: var(--accent-color);
-    border-color: var(--accent-color);
-}
-
-/* ===== Button Styling (Teal Accent) ===== */
-.btn-primary-accent {
-    background-color: var(--accent-color) !important;
-    border-color: var(--accent-color) !important;
-    color: white; 
-    font-weight: 600;
-    border-radius: 8px;
-    padding: 0.75rem 1.5rem;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.3s, box-shadow 0.3s;
-}
-
-.btn-primary-accent:hover {
-    background-color: var(--accent-hover) !important;
-    border-color: var(--accent-hover) !important;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 150, 136, 0.3); /* Teal glow on hover */
-    color: white; 
-}
-
-.btn-outline-secondary {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    font-weight: 500;
-    border-radius: 8px;
-    padding: 0.75rem 1.5rem;
-    transition: color 0.3s, border-color 0.3s, background-color 0.3s, transform 0.3s ease;
-}
-
-.btn-outline-secondary:hover {
-    color: var(--accent-color);
-    border-color: var(--accent-color);
-    transform: translateY(-1px);
-}
-.btn-outline-secondary:focus {
-    box-shadow: 0 0 0 0.25rem rgba(0, 150, 136, 0.25);
-}
-
-/* ===== Alert Messages (Teal/Navy style) ===== */
-.alert {
-    border-radius: 8px;
-    font-weight: 500;
-    border: 1px solid;
-    padding: 12px 20px;
-}
-.alert-success {
-    background-color: color-mix(in srgb, var(--success-color) 15%, transparent); 
-    border-color: var(--success-color);
-    color: var(--text-color);
-}
-.alert-danger {
-    background-color: color-mix(in srgb, var(--error-color) 15%, transparent); 
-    border-color: var(--error-color);
-    color: var(--text-color);
-}
-
-
-/* ===== Theme Toggle Switch Styling (Consistent) ===== */
-.theme-switch-wrapper {
-    position: absolute; 
-    top: 1.5rem; 
-    right: 1.5rem; 
-    display: flex;
-    align-items: center;
-    z-index: 10;
-}
-.theme-switch-wrapper em {
-    margin-right: 10px;
-    font-size: 0.9rem;
-    font-style: normal;
-    color: var(--text-color);
-    font-weight: 600;
-    transition: color 0.5s ease;
-    display: none; 
-}
-.theme-switch {
-    height: 30px;
-    position: relative;
-    width: 56px;
-}
-.theme-switch input { display:none; }
-.slider {
-    background-color: var(--text-muted-color);
-    bottom: 0;
-    cursor: pointer;
-    left: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
-    transition: .4s;
-    border-radius: 34px;
-}
-.slider:before {
-    background-color: #fff;
-    bottom: 3px;
-    content: "";
-    height: 24px;
-    left: 3px;
-    position: absolute;
-    transition: .4s;
-    width: 24px;
-    border-radius: 50%;
-}
-input:checked + .slider { background-color: var(--accent-color); } /* Teal */
-input:checked + .slider:before { transform: translateX(26px); }
-
-@media (max-width: 576px) {
-    .form-container { 
-        padding: 1.5rem; 
-        margin-top: 5rem; /* Give space for the toggle */
-        height: auto;
-    }
-    body {
-        align-items: flex-start; /* Start content from the top */
-        height: auto;
-        min-height: 100vh;
-    }
-    .theme-switch-wrapper { top: 0.75rem; right: 0.75rem; }
-}
-</style>
+<link rel="stylesheet" href="assets/css/add_user.css">
+<link rel="stylesheet" href="assets/css/admin_dashboard.css">
 </head>
 <body>
-<div class="theme-switch-wrapper">
-    <em>Dark Mode</em>
-    <label class="theme-switch" for="theme-toggle">
-        <input type="checkbox" id="theme-toggle">
-        <div class="slider round"></div>
-    </label>
-</div>
+    <aside class="sidebar d-print-none d-lg-flex">
+    <div class="sidebar-header">
+        <i class="fas fa-cubes me-2"></i>Vision Angles
+    </div>
+
+    <nav class="sidebar-nav">
+        <a href="admin_dashboard.php" class="nav-link ">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        
+        <a href="attendance_requests.php" class="nav-link">
+            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
+            <?php 
+            if ($pending_corrections > 0 && !$corrections_dismissed): 
+            ?>
+                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
+            <?php endif; ?>
+        </a>
+        
+        <a href="reset_requests.php" class="nav-link">
+            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
+            <?php 
+            if ($pending_resets > 0 && !$resets_dismissed): 
+            ?>
+                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
+            <?php endif; ?>
+        </a>
+
+
+        <span class="sidebar-title">User Management</span>
+        <a href="manage_user.php" class="nav-link">
+            <i class="fa-solid fa-users-gear"></i> Manage Users
+        </a>
+        <a href="add_user.php" class="nav-link active">
+            <i class="fa-solid fa-user-plus"></i> Add New User
+        </a>
+        <a href="manage_department.php" class="nav-link">
+            <i class="fa-solid fa-sitemap"></i> Manage Department
+        </a>
+
+        <span class="sidebar-title">Reporting & Logs</span>
+        <a href="attendance_report.php" class="nav-link">
+            <i class="fa-solid fa-chart-line"></i> Attendance Reports
+        </a>
+        <a href="logs.php" class="nav-link">
+            <i class="fa-solid fa-bug"></i> Activity Logs
+        </a>
+    </nav>
+
+    <div class="sidebar-footer d-none d-lg-block"> 
+        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
+        
+        <a href="logout.php" class="btn logout-btn-footer">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</aside>
 
 <div class="form-container">
     <h2><i class="fas fa-user-plus me-2"></i> Add New System User</h2>
@@ -448,36 +309,6 @@ input:checked + .slider:before { transform: translateX(26px); }
         </div>
     </form>
 </div>
-
-<script>
-    // JavaScript for theme toggling (Consistent)
-    const themeToggle = document.getElementById('theme-toggle');
-    const body = document.documentElement;
-
-    function applyTheme(theme) {
-        if (theme === 'dark') {
-            body.classList.add('dark-mode');
-            themeToggle.checked = true;
-        } else {
-            body.classList.remove('dark-mode');
-            themeToggle.checked = false;
-        }
-    }
-
-    // Set initial theme based on localStorage or OS preference
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-    applyTheme(initialTheme);
-
-    // Add event listener for the toggle switch
-    themeToggle.addEventListener('change', () => {
-        const newTheme = themeToggle.checked ? 'dark' : 'light';
-        applyTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-    });
-</script>
 
 </body>
 </html>

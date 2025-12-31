@@ -127,6 +127,82 @@ $stmt = pdo_execute_dept($pdo, "SELECT id, name FROM departments ORDER BY name A
 if ($stmt) {
     $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+// ===================================================
+// --- DATABASE COUNTS (CORRECTIONS & RESETS) ---
+// ===================================================
+
+$pending_resets = 0;
+$pending_corrections = 0;
+
+// ✅ Ensure both mysqli and PDO support (depending on config.php)
+if (isset($conn) && $conn instanceof mysqli) {
+    // --- Using mysqli ---
+    try {
+        // Pending password reset requests
+        $sql_resets = "SELECT COUNT(*) AS total FROM password_reset_requests WHERE status = 'PENDING'";
+        $res_resets = mysqli_query($conn, $sql_resets);
+        if ($res_resets && $row = mysqli_fetch_assoc($res_resets)) {
+            $pending_resets = (int)$row['total'];
+        }
+
+        // Pending correction requests
+        $sql_corrections = "SELECT COUNT(*) AS total FROM correction_requests WHERE status = 'PENDING'";
+        $res_corrections = mysqli_query($conn, $sql_corrections);
+        if ($res_corrections && $row = mysqli_fetch_assoc($res_corrections)) {
+            $pending_corrections = (int)$row['total'];
+        }
+    } catch (Exception $e) {
+        error_log("MySQLi DB Error: " . $e->getMessage());
+    }
+} elseif (isset($pdo) && $pdo instanceof PDO) {
+    // --- Using PDO ---
+    try {
+        $stmt1 = $pdo->query("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING'");
+        $pending_resets = (int)$stmt1->fetchColumn();
+
+        $stmt2 = $pdo->query("SELECT COUNT(*) FROM correction_requests WHERE status = 'PENDING'");
+        $pending_corrections = (int)$stmt2->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("PDO DB Error: " . $e->getMessage());
+    }
+} else {
+    error_log("❌ No valid DB connection found in config.php");
+}
+
+// ===================================================
+// --- ADMIN NAME & TOTAL ALERTS ---
+// ===================================================
+$admin_name = $_SESSION['full_name'] ?? 'Admin';
+
+// Count all active alerts that are not dismissed
+$total_alerts = 0;
+if ($pending_corrections > 0 && !$corrections_dismissed) {
+    $total_alerts += $pending_corrections;
+}
+if ($pending_resets > 0 && !$resets_dismissed) {
+    $total_alerts += $pending_resets;
+}
+// ===================================================
+// --- MOBILE HEADER CONTENT ---
+// ===================================================
+$mobile_footer_content = '
+<div class="dropdown d-inline-block d-lg-none ms-2">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Settings">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 py-2">
+            <span class="welcome-text text-dark d-block">Welcome, ' . htmlspecialchars($admin_name) . '</span>
+        </li>
+        <li class="dropdown-divider"></li>
+        <li class="px-3 py-1">
+            <a href="logout.php" class="btn btn-sm btn-danger w-100">
+                <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+            </a>
+        </li>
+    </ul>
+</div>
+';
 ?>
 
 <!DOCTYPE html>
@@ -141,6 +217,7 @@ if ($stmt) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="visionnew.png">
+<link rel="stylesheet" href="assets/css/admin_dashboard.css">
 <style>
 /* ================================================= */
 /* ===== SLEEK MINIMALIST THEME (TEAL/NAVY) - Applied from admin_dashboard.php ===== */
@@ -388,24 +465,63 @@ input:checked + .slider:before {
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg">
-    <div class="container-fluid container">
-        <a class="navbar-brand" href="admin_dashboard.php">
-            <i class="fas fa-shield-alt me-2""></i><?= COMPANY_NAME ?>
-        </a>
-        <div class="d-flex align-items-center">
-            <span class="welcome-text d-none d-md-inline">Welcome, <?= htmlspecialchars($admin_name) ?></span>
-            
-            <div class="theme-switch-wrapper me-3">
-                <em id="theme-label">Dark Mode</em> 
-                <label class="theme-switch" for="theme-toggle">
-                    <input type="checkbox" id="theme-toggle" role="switch" aria-labelledby="theme-label">
-                    <div class="slider round"></div>
-                </label>
-            </div>
-            </div>
+<aside class="sidebar d-print-none d-lg-flex">
+    <div class="sidebar-header">
+        <i class="fas fa-cubes me-2"></i>Vision Angles
     </div>
-</nav>
+
+    <nav class="sidebar-nav">
+        <a href="admin_dashboard.php" class="nav-link ">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        
+        <a href="attendance_requests.php" class="nav-link ">
+            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
+            <?php 
+            if ($pending_corrections > 0 && !$corrections_dismissed): 
+            ?>
+                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
+            <?php endif; ?>
+        </a>
+        
+        <a href="reset_requests.php" class="nav-link ">
+            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
+            <?php 
+            if ($pending_resets > 0 && !$resets_dismissed): 
+            ?>
+                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
+            <?php endif; ?>
+        </a>
+
+
+        <span class="sidebar-title">User Management</span>
+        <a href="manage_user.php" class="nav-link">
+            <i class="fa-solid fa-users-gear"></i> Manage Users
+        </a>
+        <a href="add_user.php" class="nav-link">
+            <i class="fa-solid fa-user-plus"></i> Add New User
+        </a>
+        <a href="manage_department.php" class="nav-link active">
+            <i class="fa-solid fa-sitemap"></i> Manage Department
+        </a>
+
+        <span class="sidebar-title">Reporting & Logs</span>
+        <a href="attendance_report.php" class="nav-link">
+            <i class="fa-solid fa-chart-line"></i> Attendance Reports
+        </a>
+        <a href="logs.php" class="nav-link">
+            <i class="fa-solid fa-bug"></i> Activity Logs
+        </a>
+    </nav>
+
+    <div class="sidebar-footer d-none d-lg-block"> 
+        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
+        
+        <a href="logout.php" class="btn logout-btn-footer">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</aside>
 
 <div class="main-content container py-4">
     
@@ -552,33 +668,6 @@ input:checked + .slider:before {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // JavaScript for theme toggling
-    const themeToggle = document.getElementById('theme-toggle');
-    const htmlElement = document.documentElement;
-
-    function applyTheme(theme) {
-        if (theme === 'dark') {
-            htmlElement.classList.add('dark-mode');
-            themeToggle.checked = true;
-        } else {
-            htmlElement.classList.remove('dark-mode');
-            themeToggle.checked = false;
-        }
-    }
-
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    // Prioritize saved theme, then OS preference, otherwise default to 'light'
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-    applyTheme(initialTheme);
-
-    // Add event listener for the toggle switch
-    themeToggle.addEventListener('change', () => {
-        const newTheme = themeToggle.checked ? 'dark' : 'light';
-        applyTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-    });
 
     // JavaScript to dynamically populate the Edit and Delete Modals
     const editModal = document.getElementById('editDepartmentModal');

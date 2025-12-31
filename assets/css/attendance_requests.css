@@ -1,0 +1,315 @@
+/* ================================================= */
+/* ===== SLEEK MINIMALIST THEME (TEAL/NAVY) ===== */
+/* ================================================= */
+
+/* ===== Global Variables (Light Mode Default) ===== */
+:root {
+    --text-color: #34495e;
+    /* Corporate Navy Text */
+    --bg-primary: #f8f9fa;
+    /* Off-White Background */
+    --card-bg: #ffffff;
+    --accent-color: #009688;
+    /* Primary Teal Accent */
+    --accent-hover: #00796b;
+    --pending-color: #ffc107;
+    --approved-color: #2ecc71;
+    --rejected-color: #e74c3c;
+    --border-color: rgba(0, 0, 0, 0.08);
+    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.5s ease;
+}
+
+/* ===== Dark Mode Variables (High Contrast) ===== */
+html.dark-mode {
+    --text-color: #f8f9fa;
+    --bg-primary: #1b2029;
+    /* Deep Slate Background */
+    --card-bg: #29313d;
+    /* Darker Card Background */
+    --accent-color: #4db6ac;
+    /* Lighter Teal Accent */
+    --accent-hover: #26a69a;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --shadow-subtle: 0 1px 5px rgba(0, 0, 0, 0.5);
+    /* Adjust status colors for dark mode visibility */
+    --pending-color: #ffeb3b;
+    --approved-color: #69f0ae;
+    --rejected-color: #ff8a80;
+}
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-color);
+    font-family: 'Inter', sans-serif;
+}
+
+/* --- General Layout --- */
+.container-fluid {
+    max-width: 1400px;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* --- Header and Title --- */
+.dashboard-header {
+    background-color: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.07);
+    /* Deeper shadow */
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+    transition: all 0.5s ease;
+}
+
+.dashboard-header h1 {
+    color: var(--accent-color);
+    font-weight: 800;
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+/* --- Filter Card --- */
+.filter-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+    transition: all 0.5s ease;
+}
+
+.filter-card .form-label {
+    font-size: 0.85rem;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-bottom: 0.2rem;
+}
+
+/* Style form elements for better dark mode visibility */
+.form-select,
+.form-control {
+    background-color: var(--bg-primary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+html.dark-mode .form-select,
+html.dark-mode .form-control {
+    background-color: var(--bg-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* --- Table Card and Styling --- */
+.table-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    transition: all 0.5s ease;
+}
+
+.table {
+    --bs-table-bg: var(--card-bg);
+    --bs-table-color: var(--text-color);
+}
+
+.table thead th {
+    font-weight: 700;
+    color: var(--text-color);
+    background-color: rgba(0, 150, 136, 0.1);
+    /* Light Teal header background */
+    border-bottom: 2px solid var(--accent-color);
+}
+
+.table tbody tr {
+    transition: background-color 0.2s ease-in-out;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table tbody tr:hover {
+    background-color: var(--bg-primary);
+}
+
+/* Highlight Pending rows subtly */
+.table-light {
+    --bs-table-bg: var(--bg-primary);
+}
+
+/* Style for the hidden ID column on desktop */
+.col-id-hidden {
+    display: none;
+}
+
+/* --- Badges --- */
+.status-badge {
+    padding: 0.4em 0.8em;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: inline-block;
+    text-transform: uppercase;
+}
+
+.status-PENDING {
+    background-color: #fff9e6;
+    color: #a07a00;
+    border: 1px solid var(--pending-color);
+}
+
+.status-APPROVED {
+    background-color: var(--approved-color);
+    color: white;
+}
+
+.status-REJECTED {
+    background-color: var(--rejected-color);
+    color: white;
+}
+
+html.dark-mode .status-PENDING {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: var(--pending-color);
+    border: none;
+}
+
+html.dark-mode .status-APPROVED {
+    background-color: var(--approved-color);
+    color: #1b2029;
+}
+
+html.dark-mode .status-REJECTED {
+    background-color: var(--rejected-color);
+    color: #1b2029;
+}
+
+
+.type-badge {
+    padding: 0.3em 0.6em;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: inline-block;
+    text-transform: uppercase;
+}
+
+/* Consistent, themed type badges */
+.type-CHECKIN {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.type-CHECKOUT {
+    background-color: #ffe0b2;
+    color: #f57f17;
+}
+
+.type-INOUT {
+    background-color: #e3f2fd;
+    color: #1e88e5;
+}
+
+html.dark-mode .type-CHECKIN {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #a5d6a7;
+}
+
+html.dark-mode .type-CHECKOUT {
+    background-color: rgba(255, 152, 0, 0.2);
+    color: #ffcc80;
+}
+
+html.dark-mode .type-INOUT {
+    background-color: rgba(33, 150, 243, 0.2);
+    color: #90caf9;
+}
+
+/* --- Correction Time Display --- */
+.correction-time .d-block {
+    font-size: 0.85rem;
+    line-height: 1.2;
+}
+
+/* Ensure success/danger text colors respect dark mode */
+.text-success.fw-bold {
+    color: var(--approved-color) !important;
+}
+
+.text-danger.fw-bold {
+    color: var(--rejected-color) !important;
+}
+
+/* --- Pagination Styling --- */
+.pagination .page-link {
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.pagination .page-link:hover {
+    background-color: var(--bg-primary);
+    color: var(--accent-color);
+}
+
+html.dark-mode .pagination .page-link {
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+html.dark-mode .pagination .page-link:hover {
+    background-color: var(--bg-primary);
+    color: var(--accent-color);
+}
+
+
+/* --- Mobile Adjustments (Improved) --- */
+@media (max-width: 991px) {
+    .table thead {
+        display: none;
+    }
+
+    .table tbody tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 10px;
+    }
+
+    .table tbody tr td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-top: none;
+    }
+
+    .table tbody tr td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        color: var(--text-color);
+        opacity: 0.7;
+        text-align: left;
+        flex-basis: 45%;
+        font-size: 0.9rem;
+    }
+
+    /* Show the hidden ID column label/value on mobile for context */
+    td[data-label="Request ID:"] {
+        display: flex !important;
+    }
+
+    .col-id-hidden {
+        display: table-cell;
+    }
+}

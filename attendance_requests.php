@@ -359,9 +359,86 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
     $params = array_filter($params);
     return 'attendance_requests.php?' . http_build_query($params);
 }
+// ===================================================
+// --- DATABASE COUNTS (CORRECTIONS & RESETS) ---
+// ===================================================
+
+$pending_resets = 0;
+$pending_corrections = 0;
+
+// ✅ Ensure both mysqli and PDO support (depending on config.php)
+if (isset($conn) && $conn instanceof mysqli) {
+    // --- Using mysqli ---
+    try {
+        // Pending password reset requests
+        $sql_resets = "SELECT COUNT(*) AS total FROM password_reset_requests WHERE status = 'PENDING'";
+        $res_resets = mysqli_query($conn, $sql_resets);
+        if ($res_resets && $row = mysqli_fetch_assoc($res_resets)) {
+            $pending_resets = (int)$row['total'];
+        }
+
+        // Pending correction requests
+        $sql_corrections = "SELECT COUNT(*) AS total FROM correction_requests WHERE status = 'PENDING'";
+        $res_corrections = mysqli_query($conn, $sql_corrections);
+        if ($res_corrections && $row = mysqli_fetch_assoc($res_corrections)) {
+            $pending_corrections = (int)$row['total'];
+        }
+    } catch (Exception $e) {
+        error_log("MySQLi DB Error: " . $e->getMessage());
+    }
+} elseif (isset($pdo) && $pdo instanceof PDO) {
+    // --- Using PDO ---
+    try {
+        $stmt1 = $pdo->query("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING'");
+        $pending_resets = (int)$stmt1->fetchColumn();
+
+        $stmt2 = $pdo->query("SELECT COUNT(*) FROM correction_requests WHERE status = 'PENDING'");
+        $pending_corrections = (int)$stmt2->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("PDO DB Error: " . $e->getMessage());
+    }
+} else {
+    error_log("❌ No valid DB connection found in config.php");
+}
+
+// ===================================================
+// --- ADMIN NAME & TOTAL ALERTS ---
+// ===================================================
+$admin_name = $_SESSION['full_name'] ?? 'Admin';
+
+// Count all active alerts that are not dismissed
+$total_alerts = 0;
+if ($pending_corrections > 0 && !$corrections_dismissed) {
+    $total_alerts += $pending_corrections;
+}
+if ($pending_resets > 0 && !$resets_dismissed) {
+    $total_alerts += $pending_resets;
+}
+// ===================================================
+// --- MOBILE HEADER CONTENT ---
+// ===================================================
+$mobile_footer_content = '
+<div class="dropdown d-inline-block d-lg-none ms-2">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Settings">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 py-2">
+            <span class="welcome-text text-dark d-block">Welcome, ' . htmlspecialchars($admin_name) . '</span>
+        </li>
+        <li class="dropdown-divider"></li>
+        <li class="px-3 py-1">
+            <a href="logout.php" class="btn btn-sm btn-danger w-100">
+                <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+            </a>
+        </li>
+    </ul>
+</div>
+';
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -372,298 +449,141 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="visionnew.png">
-    <style>
-        /* ================================================= */
-        /* ===== SLEEK MINIMALIST THEME (TEAL/NAVY) ===== */
-        /* ================================================= */
+    <link rel="stylesheet" href="assets/css/attendance_requests.css">
+    <link rel="stylesheet" href="assets/css/admin_dashboard.css">
 
-        /* ===== Global Variables (Light Mode Default) ===== */
-        :root {
-            --text-color: #34495e; /* Corporate Navy Text */
-            --bg-primary: #f8f9fa; /* Off-White Background */
-            --card-bg: #ffffff;
-            --accent-color: #009688; /* Primary Teal Accent */
-            --accent-hover: #00796b; 
-            --pending-color: #ffc107;
-            --approved-color: #2ecc71;
-            --rejected-color: #e74c3c;
-            --border-color: rgba(0, 0, 0, 0.08);
-            --shadow-subtle: 0 1px 3px rgba(0,0,0,0.05);
-            transition: all 0.5s ease;
-        }
-
-        /* ===== Dark Mode Variables (High Contrast) ===== */
-        html.dark-mode {
-            --text-color: #f8f9fa;
-            --bg-primary: #1b2029; /* Deep Slate Background */
-            --card-bg: #29313d; /* Darker Card Background */
-            --accent-color: #4db6ac; /* Lighter Teal Accent */
-            --accent-hover: #26a69a; 
-            --border-color: rgba(255, 255, 255, 0.1);
-            --shadow-subtle: 0 1px 5px rgba(0,0,0,0.5);
-            /* Adjust status colors for dark mode visibility */
-            --pending-color: #ffeb3b; 
-            --approved-color: #69f0ae;
-            --rejected-color: #ff8a80; 
-        }
-
-        body { 
-            background: var(--bg-primary); 
-            color: var(--text-color); 
-            font-family: 'Inter', sans-serif; 
-        }
-        
-        /* --- General Layout --- */
-        .container-fluid { 
-            max-width: 1400px; 
-            padding-top: 2rem; 
-            padding-bottom: 2rem;
-        }
-        
-        /* --- Header and Title --- */
-        .dashboard-header {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 6px 15px rgba(0,0,0,0.07); /* Deeper shadow */
-            padding: 1.5rem 2rem;
-            margin-bottom: 2rem;
-            border: 1px solid var(--border-color);
-            transition: all 0.5s ease;
-        }
-        .dashboard-header h1 { 
-            color: var(--accent-color); 
-            font-weight: 800;
-            margin: 0;
-            font-size: 1.8rem;
-        }
-
-        /* --- Filter Card --- */
-        .filter-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-            padding: 20px;
-            margin-bottom: 2rem;
-            border: 1px solid var(--border-color);
-            transition: all 0.5s ease;
-        }
-        .filter-card .form-label {
-            font-size: 0.85rem;
-            color: var(--text-color);
-            opacity: 0.8;
-            margin-bottom: 0.2rem;
-        }
-        /* Style form elements for better dark mode visibility */
-        .form-select, .form-control {
-            background-color: var(--bg-primary); 
-            color: var(--text-color);
-            border-color: var(--border-color);
-        }
-        html.dark-mode .form-select, html.dark-mode .form-control {
-            background-color: var(--bg-primary); 
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        
-        /* --- Table Card and Styling --- */
-        .table-card { 
-            background: var(--card-bg); 
-            border-radius: 12px; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05); 
-            padding: 20px; 
-            border: 1px solid var(--border-color);
-            transition: all 0.5s ease;
-        }
-        .table {
-            --bs-table-bg: var(--card-bg);
-            --bs-table-color: var(--text-color);
-        }
-        .table thead th {
-            font-weight: 700;
-            color: var(--text-color);
-            background-color: rgba(0, 150, 136, 0.1); /* Light Teal header background */
-            border-bottom: 2px solid var(--accent-color);
-        }
-        .table tbody tr {
-            transition: background-color 0.2s ease-in-out;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .table tbody tr:hover {
-            background-color: var(--bg-primary);
-        }
-        /* Highlight Pending rows subtly */
-        .table-light {
-            --bs-table-bg: var(--bg-primary);
-        }
-
-        /* Style for the hidden ID column on desktop */
-        .col-id-hidden {
-            display: none;
-        }
-
-        /* --- Badges --- */
-        .status-badge { 
-            padding: 0.4em 0.8em; 
-            border-radius: 20px; 
-            font-weight: 600; 
-            font-size: 0.8rem;
-            display: inline-block;
-            text-transform: uppercase;
-        }
-        .status-PENDING { background-color: #fff9e6; color: #a07a00; border: 1px solid var(--pending-color); }
-        .status-APPROVED { background-color: var(--approved-color); color: white; }
-        .status-REJECTED { background-color: var(--rejected-color); color: white; }
-        html.dark-mode .status-PENDING { background-color: rgba(255, 193, 7, 0.2); color: var(--pending-color); border: none; }
-        html.dark-mode .status-APPROVED { background-color: var(--approved-color); color: #1b2029; }
-        html.dark-mode .status-REJECTED { background-color: var(--rejected-color); color: #1b2029; }
-
-
-        .type-badge {
-            padding: 0.3em 0.6em;
-            border-radius: 6px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            display: inline-block;
-            text-transform: uppercase;
-        }
-        /* Consistent, themed type badges */
-        .type-CHECKIN { background-color: #e8f5e9; color: #388e3c; } 
-        .type-CHECKOUT { background-color: #ffe0b2; color: #f57f17; } 
-        .type-INOUT { background-color: #e3f2fd; color: #1e88e5; } 
-        html.dark-mode .type-CHECKIN { background-color: rgba(76, 175, 80, 0.2); color: #a5d6a7; } 
-        html.dark-mode .type-CHECKOUT { background-color: rgba(255, 152, 0, 0.2); color: #ffcc80; } 
-        html.dark-mode .type-INOUT { background-color: rgba(33, 150, 243, 0.2); color: #90caf9; } 
-        
-        /* --- Correction Time Display --- */
-        .correction-time .d-block {
-            font-size: 0.85rem;
-            line-height: 1.2;
-        }
-        /* Ensure success/danger text colors respect dark mode */
-        .text-success.fw-bold { color: var(--approved-color) !important; }
-        .text-danger.fw-bold { color: var(--rejected-color) !important; }
-
-        /* --- Pagination Styling --- */
-        .pagination .page-link {
-            color: var(--text-color);
-            background-color: var(--card-bg);
-            border-color: var(--border-color);
-        }
-        .pagination .page-item.active .page-link {
-            background-color: var(--accent-color);
-            border-color: var(--accent-color);
-            color: white;
-        }
-        .pagination .page-link:hover {
-            background-color: var(--bg-primary);
-            color: var(--accent-color);
-        }
-        html.dark-mode .pagination .page-link {
-            color: var(--text-color);
-            background-color: var(--card-bg);
-            border-color: var(--border-color);
-        }
-        html.dark-mode .pagination .page-link:hover {
-            background-color: var(--bg-primary);
-            color: var(--accent-color);
-        }
-
-
-        /* --- Mobile Adjustments (Improved) --- */
-        @media (max-width: 991px) {
-            .table thead { display: none; }
-            .table tbody tr { 
-                display: block; 
-                margin-bottom: 1rem; 
-                border: 1px solid var(--border-color); 
-                border-radius: 8px; 
-                padding: 10px;
-            }
-            .table tbody tr td { 
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0.5rem 0; 
-                border-top: none; 
-            }
-            .table tbody tr td::before {
-                content: attr(data-label);
-                font-weight: bold;
-                color: var(--text-color);
-                opacity: 0.7;
-                text-align: left;
-                flex-basis: 45%;
-                font-size: 0.9rem;
-            }
-            /* Show the hidden ID column label/value on mobile for context */
-            td[data-label="Request ID:"] { display: flex !important; }
-            .col-id-hidden { display: table-cell; }
-        }
-    </style>
 </head>
-<body>
 
-<div class="container-fluid">
-    
-    <div class="dashboard-header d-flex flex-wrap justify-content-between align-items-center">
-        <h1><i class="fa-solid fa-clock-rotate-left me-2" style="color: var(--accent-color);"></i> Attendance Corrections</h1>
-        <a href="admin_dashboard.php" class="btn btn-outline-secondary mt-2 mt-md-0" style="--bs-btn-border-color: var(--accent-color); --bs-btn-color: var(--accent-color);">
-            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
-        </a>
+<body>
+    <aside class="sidebar d-print-none d-lg-flex">
+    <div class="sidebar-header">
+        <i class="fas fa-cubes me-2"></i>Vision Angles
     </div>
 
-    <?php if ($message): ?>
-        <div class="alert <?= strpos($message, 'Error') !== false ? 'alert-danger' : 'alert-success' ?> alert-dismissible fade show" role="alert">
+    <nav class="sidebar-nav">
+        <a href="admin_dashboard.php" class="nav-link ">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        
+        <a href="attendance_requests.php" class="nav-link active">
+            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
+            <?php 
+            if ($pending_corrections > 0 && !$corrections_dismissed): 
+            ?>
+                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
+            <?php endif; ?>
+        </a>
+        
+        <a href="reset_requests.php" class="nav-link">
+            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
+            <?php 
+            if ($pending_resets > 0 && !$resets_dismissed): 
+            ?>
+                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
+            <?php endif; ?>
+        </a>
+
+
+        <span class="sidebar-title">User Management</span>
+        <a href="manage_user.php" class="nav-link">
+            <i class="fa-solid fa-users-gear"></i> Manage Users
+        </a>
+        <a href="add_user.php" class="nav-link">
+            <i class="fa-solid fa-user-plus"></i> Add New User
+        </a>
+        <a href="manage_department.php" class="nav-link">
+            <i class="fa-solid fa-sitemap"></i> Manage Department
+        </a>
+
+        <span class="sidebar-title">Reporting & Logs</span>
+        <a href="attendance_report.php" class="nav-link">
+            <i class="fa-solid fa-chart-line"></i> Attendance Reports
+        </a>
+        <a href="logs.php" class="nav-link">
+            <i class="fa-solid fa-bug"></i> Activity Logs
+        </a>
+    </nav>
+
+    <div class="sidebar-footer d-none d-lg-block"> 
+        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
+        
+        <a href="logout.php" class="btn logout-btn-footer">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</aside>
+    <div class="container-fluid">
+
+        <div class="dashboard-header d-flex flex-wrap justify-content-between align-items-center">
+            <h1><i class="fa-solid fa-clock-rotate-left me-2" style="color: var(--accent-color);"></i> Attendance
+                Corrections</h1>
+            <a href="admin_dashboard.php" class="btn btn-outline-secondary mt-2 mt-md-0"
+                style="--bs-btn-border-color: var(--accent-color); --bs-btn-color: var(--accent-color);">
+                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <?php if ($message): ?>
+        <div class="alert <?= strpos($message, 'Error') !== false ? 'alert-danger' : 'alert-success' ?> alert-dismissible fade show"
+            role="alert">
             <?= $message ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-    <?php endif; ?>
+        <?php endif; ?>
 
-    <div class="filter-card">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-12 col-lg-3 col-md-6">
-                <label for="user_id" class="form-label fw-bold">Employee Name</label>
-                <select name="user_id" id="user_id" class="form-select form-select-sm">
-                    <option value="">All Employees</option>
-                    <?php foreach ($users as $user): ?>
+        <div class="filter-card">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-12 col-lg-3 col-md-6">
+                    <label for="user_id" class="form-label fw-bold">Employee Name</label>
+                    <select name="user_id" id="user_id" class="form-select form-select-sm">
+                        <option value="">All Employees</option>
+                        <?php foreach ($users as $user): ?>
                         <option value="<?= $user['id'] ?>" <?= ($filter_user_id == $user['id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($user['full_name']) ?>
                         </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-12 col-lg-3 col-md-6">
-                <label for="correction_date" class="form-label fw-bold">Date Requested</label>
-                <input type="date" name="correction_date" id="correction_date" class="form-control form-control-sm" value="<?= htmlspecialchars($filter_date) ?>">
-            </div>
-            <div class="col-12 col-lg-3 col-md-6">
-                <label for="status" class="form-label fw-bold">Request Status</label>
-                <select name="status" id="status" class="form-select form-select-sm">
-                    <option value="">All Statuses</option>
-                    <option value="PENDING" <?= ($filter_status === 'PENDING') ? 'selected' : '' ?>>Pending</option>
-                    <option value="APPROVED" <?= ($filter_status === 'APPROVED') ? 'selected' : '' ?>>Approved</option>
-                    <option value="REJECTED" <?= ($filter_status === 'REJECTED') ? 'selected' : '' ?>>Rejected</option>
-                </select>
-            </div>
-            <div class="col-12 col-lg-3 col-md-6 d-flex justify-content-end justify-content-md-start">
-                <button type="submit" class="btn btn-primary btn-sm me-2" style="background-color: var(--accent-color); border-color: var(--accent-color);"><i class="fas fa-filter me-1"></i> Apply Filter</button>
-                <a href="attendance_requests.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-eraser me-1"></i> Clear</a>
-            </div>
-        </form>
-    </div>
-    
-    <div class="table-card">
-        <?php if (empty($requests)): ?>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-12 col-lg-3 col-md-6">
+                    <label for="correction_date" class="form-label fw-bold">Date Requested</label>
+                    <input type="date" name="correction_date" id="correction_date" class="form-control form-control-sm"
+                        value="<?= htmlspecialchars($filter_date) ?>">
+                </div>
+                <div class="col-12 col-lg-3 col-md-6">
+                    <label for="status" class="form-label fw-bold">Request Status</label>
+                    <select name="status" id="status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING" <?= ($filter_status === 'PENDING') ? 'selected' : '' ?>>Pending</option>
+                        <option value="APPROVED" <?= ($filter_status === 'APPROVED') ? 'selected' : '' ?>>Approved
+                        </option>
+                        <option value="REJECTED" <?= ($filter_status === 'REJECTED') ? 'selected' : '' ?>>Rejected
+                        </option>
+                    </select>
+                </div>
+                <div class="col-12 col-lg-3 col-md-6 d-flex justify-content-end justify-content-md-start">
+                    <button type="submit" class="btn btn-primary btn-sm me-2"
+                        style="background-color: var(--accent-color); border-color: var(--accent-color);"><i
+                            class="fas fa-filter me-1"></i> Apply Filter</button>
+                    <a href="attendance_requests.php" class="btn btn-outline-secondary btn-sm"><i
+                            class="fas fa-eraser me-1"></i> Clear</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-card">
+            <?php if (empty($requests)): ?>
             <div class="alert alert-info text-center py-4">
                 <i class="fas fa-inbox fa-2x d-block mb-2"></i>
                 No attendance correction requests found matching the current filters.
             </div>
-        <?php else: ?>
-            <p class="text-muted small mb-3">Showing <?= $offset + 1 ?> - <?= min($offset + $limit, $total_requests) ?> of <?= $total_requests ?> requests.</p>
+            <?php else: ?>
+            <p class="text-muted small mb-3">Showing <?= $offset + 1 ?> - <?= min($offset + $limit, $total_requests) ?>
+                of <?= $total_requests ?> requests.</p>
             <div class="table-responsive">
                 <table class="table table-striped table-hover align-middle">
                     <thead>
                         <tr>
-                            <th class="col-id-hidden">ID</th> 
+                            <th class="col-id-hidden">ID</th>
                             <th>Employee</th>
                             <th>Date</th>
                             <th>Correction Details</th>
@@ -701,10 +621,12 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
                         <tr class="<?= $request['status'] === 'PENDING' ? 'table-light' : '' ?>">
                             <td data-label="Request ID:" class="col-id-hidden">#<?= $request['id'] ?></td>
                             <td data-label="Employee:">
-                                <span class="fw-bold text-dark" style="color: var(--text-color) !important;"><?= htmlspecialchars($request['user_name']) ?></span>
+                                <span class="fw-bold text-dark"
+                                    style="color: var(--text-color) !important;"><?= htmlspecialchars($request['user_name']) ?></span>
                             </td>
                             <td data-label="Date:">
-                                <span class="badge bg-light text-dark fw-bold border border-secondary-subtle" style="background-color: var(--bg-primary) !important; color: var(--text-color) !important;"><?= date('Y-m-d', strtotime($request['correction_date'])) ?></span>
+                                <span class="badge bg-light text-dark fw-bold border border-secondary-subtle"
+                                    style="background-color: var(--bg-primary) !important; color: var(--text-color) !important;"><?= date('Y-m-d', strtotime($request['correction_date'])) ?></span>
                             </td>
                             <td data-label="Correction Details:">
                                 <span class="type-badge type-<?= $request_type_class ?> mb-1">
@@ -712,10 +634,10 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
                                 </span>
                                 <div class="small correction-time">
                                     <?php if ($correction_time_in): ?>
-                                        <span class="d-block text-success fw-bold">IN: <?= $correction_time_in ?></span>
+                                    <span class="d-block text-success fw-bold">IN: <?= $correction_time_in ?></span>
                                     <?php endif; ?>
                                     <?php if ($correction_time_out): ?>
-                                        <span class="d-block text-danger fw-bold">OUT: <?= $correction_time_out ?></span>
+                                    <span class="d-block text-danger fw-bold">OUT: <?= $correction_time_out ?></span>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -723,7 +645,8 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
                                 <?= $store_name_display ?>
                             </td>
                             <td data-label="Reason & Request Time:">
-                                <p class="mb-0 small text-truncate" data-bs-toggle="tooltip" data-bs-placement="top" title="<?= htmlspecialchars($request['reason']) ?>">
+                                <p class="mb-0 small text-truncate" data-bs-toggle="tooltip" data-bs-placement="top"
+                                    title="<?= htmlspecialchars($request['reason']) ?>">
                                     <?= htmlspecialchars(substr($request['reason'], 0, 70)) . (strlen($request['reason']) > 70 ? '...' : '') ?>
                                 </p>
                                 <small class="text-muted d-block mt-1">
@@ -735,42 +658,51 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
                                     <?= ucfirst(strtolower($request['status'])) ?>
                                 </span>
                                 <?php if ($request['status'] !== 'PENDING' && $request['admin_name']): ?>
-                                    <small class="d-block text-muted mt-1">by <?= htmlspecialchars($request['admin_name']) ?></small>
+                                <small class="d-block text-muted mt-1">by
+                                    <?= htmlspecialchars($request['admin_name']) ?></small>
                                 <?php endif; ?>
                             </td>
                             <td data-label="Actions:">
-                                <form method="post" class="action-dropdown" onsubmit="return confirm('Confirm action: <?= $request['status'] === 'APPROVED' ? 'Undo Approval and Revert Attendance?' : 'Process this request?' ?>');">
+                                <form method="post" class="action-dropdown"
+                                    onsubmit="return confirm('Confirm action: <?= $request['status'] === 'APPROVED' ? 'Undo Approval and Revert Attendance?' : 'Process this request?' ?>');">
                                     <input type="hidden" name="request_id" value="<?= $request['id'] ?>">
-                                    <input type="hidden" name="user_id" value="<?= htmlspecialchars($filter_user_id) ?>">
+                                    <input type="hidden" name="user_id"
+                                        value="<?= htmlspecialchars($filter_user_id) ?>">
                                     <input type="hidden" name="status" value="<?= htmlspecialchars($filter_status) ?>">
-                                    <input type="hidden" name="correction_date" value="<?= htmlspecialchars($filter_date) ?>">
+                                    <input type="hidden" name="correction_date"
+                                        value="<?= htmlspecialchars($filter_date) ?>">
                                     <input type="hidden" name="page" value="<?= $current_page ?>">
 
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="View Options">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                            data-bs-toggle="dropdown" aria-expanded="false" title="View Options">
                                             <i class="fas fa-cogs"></i>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
-                                            
+
                                             <?php if ($request['status'] === 'PENDING'): ?>
-                                                <li>
-                                                    <button type="submit" name="action" value="APPROVE" class="dropdown-item text-success">
-                                                        <i class="fas fa-check me-2"></i> Approve
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button type="submit" name="action" value="REJECT" class="dropdown-item text-danger">
-                                                        <i class="fas fa-times me-2"></i> Reject
-                                                    </button>
-                                                </li>
+                                            <li>
+                                                <button type="submit" name="action" value="APPROVE"
+                                                    class="dropdown-item text-success">
+                                                    <i class="fas fa-check me-2"></i> Approve
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button type="submit" name="action" value="REJECT"
+                                                    class="dropdown-item text-danger">
+                                                    <i class="fas fa-times me-2"></i> Reject
+                                                </button>
+                                            </li>
                                             <?php elseif ($request['status'] === 'APPROVED'): ?>
-                                                <li>
-                                                    <button type="submit" name="action" value="CANCEL_APPROVAL" class="dropdown-item text-warning">
-                                                        <i class="fas fa-undo me-2"></i> Undo Approval
-                                                    </button>
-                                                </li>
+                                            <li>
+                                                <button type="submit" name="action" value="CANCEL_APPROVAL"
+                                                    class="dropdown-item text-warning">
+                                                    <i class="fas fa-undo me-2"></i> Undo Approval
+                                                </button>
+                                            </li>
                                             <?php else: // REJECTED ?>
-                                                <li><span class="dropdown-item text-muted small">Rejected (No further action)</span></li>
+                                            <li><span class="dropdown-item text-muted small">Rejected (No further
+                                                    action)</span></li>
                                             <?php endif; ?>
                                         </ul>
                                     </div>
@@ -782,56 +714,39 @@ function build_pagination_url($page, $filter_user_id, $filter_status, $filter_da
                 </table>
             </div>
             <?php if ($total_pages > 1): ?>
-                <nav aria-label="Page navigation" class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item <?= ($current_page <= 1) ? 'disabled' : '' ?>">
-                            <a class="page-link" href="<?= build_pagination_url($current_page - 1, $filter_user_id, $filter_status, $filter_date) ?>" aria-label="Previous">
-                                <span aria-hidden="true">&laquo;</span>
-                            </a>
-                        </li>
-                        
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <li class="page-item <?= ($current_page == $i) ? 'active' : '' ?>">
-                                <a class="page-link" href="<?= build_pagination_url($i, $filter_user_id, $filter_status, $filter_date) ?>"><?= $i ?></a>
-                            </li>
-                        <?php endfor; ?>
-                        
-                        <li class="page-item <?= ($current_page >= $total_pages) ? 'disabled' : '' ?>">
-                            <a class="page-link" href="<?= build_pagination_url($current_page + 1, $filter_user_id, $filter_status, $filter_date) ?>" aria-label="Next">
-                                <span aria-hidden="true">&raquo;</span>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?= ($current_page <= 1) ? 'disabled' : '' ?>">
+                        <a class="page-link"
+                            href="<?= build_pagination_url($current_page - 1, $filter_user_id, $filter_status, $filter_date) ?>"
+                            aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+
+                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                    <li class="page-item <?= ($current_page == $i) ? 'active' : '' ?>">
+                        <a class="page-link"
+                            href="<?= build_pagination_url($i, $filter_user_id, $filter_status, $filter_date) ?>"><?= $i ?></a>
+                    </li>
+                    <?php endfor; ?>
+
+                    <li class="page-item <?= ($current_page >= $total_pages) ? 'disabled' : '' ?>">
+                        <a class="page-link"
+                            href="<?= build_pagination_url($current_page + 1, $filter_user_id, $filter_status, $filter_date) ?>"
+                            aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
             <?php endif; ?>
-        <?php endif; ?>
+            <?php endif; ?>
+        </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// --- Dark Mode Script (Preserved from original code) ---
-const htmlElement = document.documentElement;
-
-function applyTheme(theme) {
-    if(theme === 'dark') {
-        htmlElement.classList.add('dark-mode');
-    } else {
-        htmlElement.classList.remove('dark-mode');
-    }
-}
-
-// Apply theme on load (you'd typically add a toggle switch to the admin dashboard if one isn't present)
-const savedTheme = localStorage.getItem('theme');
-const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
-
-// Initialize tooltips
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-  return new bootstrap.Tooltip(tooltipTriggerEl)
-})
-</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
+
 </html>

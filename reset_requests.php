@@ -183,7 +183,82 @@ function render_pagination($current_page, $total_pages, $param_name) {
     $html .= '</ul></nav>';
     return $html;
 }
+// ===================================================
+// --- DATABASE COUNTS (CORRECTIONS & RESETS) ---
+// ===================================================
 
+$pending_resets = 0;
+$pending_corrections = 0;
+
+// ✅ Ensure both mysqli and PDO support (depending on config.php)
+if (isset($conn) && $conn instanceof mysqli) {
+    // --- Using mysqli ---
+    try {
+        // Pending password reset requests
+        $sql_resets = "SELECT COUNT(*) AS total FROM password_reset_requests WHERE status = 'PENDING'";
+        $res_resets = mysqli_query($conn, $sql_resets);
+        if ($res_resets && $row = mysqli_fetch_assoc($res_resets)) {
+            $pending_resets = (int)$row['total'];
+        }
+
+        // Pending correction requests
+        $sql_corrections = "SELECT COUNT(*) AS total FROM correction_requests WHERE status = 'PENDING'";
+        $res_corrections = mysqli_query($conn, $sql_corrections);
+        if ($res_corrections && $row = mysqli_fetch_assoc($res_corrections)) {
+            $pending_corrections = (int)$row['total'];
+        }
+    } catch (Exception $e) {
+        error_log("MySQLi DB Error: " . $e->getMessage());
+    }
+} elseif (isset($pdo) && $pdo instanceof PDO) {
+    // --- Using PDO ---
+    try {
+        $stmt1 = $pdo->query("SELECT COUNT(*) FROM password_reset_requests WHERE status = 'PENDING'");
+        $pending_resets = (int)$stmt1->fetchColumn();
+
+        $stmt2 = $pdo->query("SELECT COUNT(*) FROM correction_requests WHERE status = 'PENDING'");
+        $pending_corrections = (int)$stmt2->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("PDO DB Error: " . $e->getMessage());
+    }
+} else {
+    error_log("❌ No valid DB connection found in config.php");
+}
+
+// ===================================================
+// --- ADMIN NAME & TOTAL ALERTS ---
+// ===================================================
+$admin_name = $_SESSION['full_name'] ?? 'Admin';
+
+// Count all active alerts that are not dismissed
+$total_alerts = 0;
+if ($pending_corrections > 0 && !$corrections_dismissed) {
+    $total_alerts += $pending_corrections;
+}
+if ($pending_resets > 0 && !$resets_dismissed) {
+    $total_alerts += $pending_resets;
+}
+// ===================================================
+// --- MOBILE HEADER CONTENT ---
+// ===================================================
+$mobile_footer_content = '
+<div class="dropdown d-inline-block d-lg-none ms-2">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Settings">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 py-2">
+            <span class="welcome-text text-dark d-block">Welcome, ' . htmlspecialchars($admin_name) . '</span>
+        </li>
+        <li class="dropdown-divider"></li>
+        <li class="px-3 py-1">
+            <a href="logout.php" class="btn btn-sm btn-danger w-100">
+                <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+            </a>
+        </li>
+    </ul>
+</div>
+';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -195,349 +270,67 @@ function render_pagination($current_page, $total_pages, $param_name) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="visionnew.png">
-<style>
-/* ================================================= */
-/* ===== SLEEK MINIMALIST THEME (TEAL/NAVY) ===== */
-/* ================================================= */
-
-/* ===== Global Variables (Light Mode Default) ===== */
-:root {
-    --text-color: #34495e; /* Corporate Navy Text */
-    --bg-primary: #f4f7fa; /* Very Light Background */
-    --card-bg: #ffffff;
-    --accent-color: #009688; /* Primary Teal Accent */
-    --accent-hover: #00796b;
-    --error-color: #e74c3c;
-    --success-color: #2ecc71; /* Brighter Green for Success */
-    --border-color: rgba(0, 0, 0, 0.08);
-    --shadow-light: 0 4px 12px rgba(0,0,0,0.05);
-    --shadow-hover: 0 8px 16px rgba(0,0,0,0.15); 
-    --nav-bg: #ffffff;
-    --text-muted-color: #95a5a6; /* Silver/Gray */
-    transition: all 0.5s ease;
-}
-
-/* ===== Dark Mode Variables (Teal/Navy Dark) ===== */
-html.dark-mode {
-    --text-color: #ecf0f1; 
-    --bg-primary: #1b2029; /* Deep Slate Background */
-    --card-bg: #2d3846; /* Darker Card Background */
-    --accent-color: #4db6ac; /* Lighter Teal Accent */
-    --accent-hover: #26a69a;
-    --error-color: #ff6b6b;
-    --success-color: #48c9b0; /* Lighter Teal Green */
-    --border-color: rgba(255, 255, 255, 0.1);
-    --shadow-light: 0 4px 12px rgba(0,0,0,0.3);
-    --shadow-hover: 0 8px 20px rgba(0,0,0,0.5); 
-    --nav-bg: #2d3846;
-    --text-muted-color: #bdc3c7;
-}
-
-body { 
-    background: var(--bg-primary); 
-    color: var(--text-color); 
-    font-family: 'Inter', sans-serif;
-    min-height: 100vh;
-    transition: background 0.5s ease, color 0.5s ease;
-}
-
-/* --- Navigation Bar --- */
-.navbar {
-    background: var(--nav-bg); 
-    z-index: 1000;
-    position: sticky;
-    top: 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    border-bottom: 1px solid var(--border-color);
-}
-.navbar-brand { 
-    font-weight: 800; 
-    color: var(--accent-color) !important; 
-    font-size: 1.8rem;
-    letter-spacing: -0.5px;
-}
-.welcome-text { color: var(--text-color); font-weight: 500; margin-right: 15px; }
-
-
-/* --- Animated Button Styles --- */
-.btn { transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); } 
-.btn:hover { transform: translateY(-1px); }
-.btn:active { transform: scale(0.95); } 
-
-/* Adjusted button styles to fit the Teal theme */
-.btn-accent {
-    background-color: var(--accent-color) !important;
-    border-color: var(--accent-color) !important;
-    color: #fff;
-    font-weight: 600;
-}
-.btn-accent:hover {
-    background-color: var(--accent-hover) !important;
-    border-color: var(--accent-hover) !important;
-}
-
-/* --- Pagination Styles (use accent color) --- */
-.page-link {
-    color: var(--accent-color);
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-}
-.page-item.active .page-link {
-    background-color: var(--accent-color);
-    border-color: var(--accent-color);
-    color: white;
-}
-.page-link:hover {
-    color: var(--accent-hover);
-    /* Using color-mix for a subtle hover effect */
-    background-color: color-mix(in srgb, var(--card-bg) 95%, var(--accent-color));
-    border-color: var(--accent-color);
-}
-
-
-/* ------------------------------------------- */
-/* ===== SMALL DARK MODE TOGGLE STYLING ===== */
-/* ------------------------------------------- */
-.theme-switch-wrapper { 
-    display: flex; 
-    align-items: center;
-}
-.theme-switch-wrapper em { 
-    margin-right: 8px; 
-    font-size: 0.95rem; 
-    font-style: normal; 
-    color: var(--text-color); 
-    font-weight: 600; 
-    transition: color 0.5s ease;
-}
-.theme-switch { 
-    height: 20px; 
-    width: 38px; 
-    position: relative;
-    display: inline-block;
-}
-.theme-switch input { 
-    display: none; 
-}
-.slider { 
-    background-color: var(--text-muted-color); 
-    bottom: 0; 
-    cursor: pointer; 
-    left: 0; 
-    position: absolute; 
-    right: 0; 
-    top: 0; 
-    transition: .4s; 
-}
-.slider.round { 
-    border-radius: 34px; 
-}
-.slider.round:before { 
-    border-radius: 50%; 
-}
-.slider:before { 
-    background-color: #fff; 
-    bottom: 1px; 
-    content: ""; 
-    height: 18px; 
-    left: 1px; 
-    position: absolute; 
-    transition: .4s; 
-    width: 18px; 
-}
-input:checked + .slider { 
-    background-color: var(--accent-color); 
-}
-input:checked + .slider:before { 
-    transform: translateX(19px); 
-}
-/* ------------------------------------------- */
-
-
-/* ===== Main Content Area Styling (Animated Fade-In) ===== */
-.main-content {
-    opacity: 0; 
-    transform: translateY(20px); 
-    transition: opacity 0.8s ease-out, transform 0.8s ease-out;
-    padding: 2rem 0;
-}
-.main-content.loaded {
-    opacity: 1; 
-    transform: translateY(0); 
-}
-.page-header {
-    font-size: 2.5rem;
-    font-weight: 800;
-    color: var(--text-color);
-    margin-bottom: 3rem;
-    padding-bottom: 0.5rem;
-    display: inline-block;
-    /* Changed border color to Teal Accent */
-    border-bottom: 4px solid var(--accent-color); 
-    line-height: 1.2;
-}
-.h3-section {
-    font-weight: 700;
-    margin-top: 3rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-/* Highlight Pending with Error/Accent color for visibility */
-.h3-section.text-danger { 
-    color: var(--error-color) !important; 
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
-}
-
-/* ===== Card & List Styling (Redesign Focus) */
-.main-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: var(--shadow-light);
-    padding: 1.5rem;
-    transition: box-shadow 0.3s ease, transform 0.3s ease, background 0.5s ease;
-}
-.main-card:hover {
-    box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
-}
-
-/* --- Request List/Item Styling for Responsiveness --- */
-.request-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 15px 0;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.3s ease;
-}
-.request-item:last-child {
-    border-bottom: none;
-}
-.request-item:hover {
-    background-color: color-mix(in srgb, var(--card-bg) 95%, var(--accent-color));
-}
-.item-icon {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    border-radius: 50%;
-    background-color: var(--error-color); /* Pending uses Error color for urgency */
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    margin-right: 15px;
-}
-.item-icon-history {
-    background-color: var(--success-color); /* History uses Success color */
-}
-.item-details strong {
-    display: block;
-    font-weight: 600;
-    font-size: 1.05rem;
-}
-.item-meta {
-    font-size: 0.85rem;
-    color: var(--text-muted-color);
-}
-.item-action, .item-status {
-    text-align: right;
-    width: 250px; 
-    min-width: 150px;
-}
-
-/* --- RESPONSIVENESS: Mobile Layout Adjustments (Max 768px) --- */
-@media (max-width: 768px) {
-    .request-item {
-        flex-direction: column; 
-        align-items: flex-start;
-        padding: 15px 0 10px 0; 
-    }
-    .item-icon {
-        margin-right: 10px;
-        margin-bottom: 10px; 
-    }
-    .item-details {
-        margin-bottom: 15px;
-    }
-    .item-action, .item-status {
-        width: 100%; 
-        text-align: left;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-    }
-    .item-action span {
-        margin-right: 0 !important; 
-        order: 2; 
-    }
-    .item-action form {
-        order: 1; 
-    }
-    .item-status small {
-        order: 2;
-    }
-    .item-status .badge {
-        order: 1;
-    }
-}
-
-
-/* --- Alert Styling --- */
-@keyframes fadeInDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-.alert-custom {
-    animation: fadeInDown 0.5s ease-out forwards;
-}
-.alert-success-custom {
-    background-color: var(--card-bg);
-    color: var(--success-color);
-    border: 1px solid var(--success-color);
-    font-weight: 600;
-}
-.alert-danger-custom {
-    background-color: var(--card-bg);
-    color: var(--error-color);
-    border: 1px solid var(--error-color);
-    font-weight: 600;
-}
-.alert-info-custom {
-    background-color: var(--card-bg);
-    color: var(--accent-color);
-    border: 1px solid var(--accent-color);
-    font-weight: 600;
-}
-</style>
+<link rel="stylesheet" href="assets/css/reset_requests.css">
+<link rel="stylesheet" href="assets/css/admin_dashboard.css">
 </head>
 <body>
-
-<nav class="navbar navbar-expand-lg">
-    <div class="container-fluid container">
-        <a class="navbar-brand" href="admin_dashboard.php">
-            <i class="fas fa-shield-alt me-2"></i>Vision Angles
-        </a>
-        <div class="d-flex align-items-center">
-            
-            
-            <div class="theme-switch-wrapper me-3">
-                <em id="theme-label">Dark Mode</em>
-                <label class="theme-switch" for="theme-toggle">
-                    <input type="checkbox" id="theme-toggle">
-                    <span class="slider round"></span>
-                </label>
-            </div>
-            
-            </div>
+<aside class="sidebar d-print-none d-lg-flex">
+    <div class="sidebar-header">
+        <i class="fas fa-cubes me-2"></i>Vision Angles
     </div>
-</nav>
+
+    <nav class="sidebar-nav">
+        <a href="admin_dashboard.php" class="nav-link ">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        
+        <a href="attendance_requests.php" class="nav-link ">
+            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
+            <?php 
+            if ($pending_corrections > 0 && !$corrections_dismissed): 
+            ?>
+                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
+            <?php endif; ?>
+        </a>
+        
+        <a href="reset_requests.php" class="nav-link active">
+            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
+            <?php 
+            if ($pending_resets > 0 && !$resets_dismissed): 
+            ?>
+                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
+            <?php endif; ?>
+        </a>
+
+
+        <span class="sidebar-title">User Management</span>
+        <a href="manage_user.php" class="nav-link">
+            <i class="fa-solid fa-users-gear"></i> Manage Users
+        </a>
+        <a href="add_user.php" class="nav-link">
+            <i class="fa-solid fa-user-plus"></i> Add New User
+        </a>
+        <a href="manage_department.php" class="nav-link">
+            <i class="fa-solid fa-sitemap"></i> Manage Department
+        </a>
+
+        <span class="sidebar-title">Reporting & Logs</span>
+        <a href="attendance_report.php" class="nav-link">
+            <i class="fa-solid fa-chart-line"></i> Attendance Reports
+        </a>
+        <a href="logs.php" class="nav-link">
+            <i class="fa-solid fa-bug"></i> Activity Logs
+        </a>
+    </nav>
+
+    <div class="sidebar-footer d-none d-lg-block"> 
+        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
+        
+        <a href="logout.php" class="btn logout-btn-footer">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</aside>
 
 <div class="main-content" id="main-content">
     <div class="container">
@@ -654,34 +447,6 @@ input:checked + .slider:before {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // JavaScript for theme toggling (Ensures theme state is saved/loaded)
-    const themeToggle = document.getElementById('theme-toggle');
-    const htmlElement = document.documentElement;
-
-    function applyTheme(theme) {
-        if (theme === 'dark') {
-            htmlElement.classList.add('dark-mode');
-            themeToggle.checked = true;
-        } else {
-            htmlElement.classList.remove('dark-mode');
-            themeToggle.checked = false;
-        }
-    }
-
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    // Prioritize saved theme, then OS preference, otherwise default to 'light'
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-    applyTheme(initialTheme);
-
-    // Add event listener for the toggle switch
-    themeToggle.addEventListener('change', () => {
-        const newTheme = themeToggle.checked ? 'dark' : 'light';
-        applyTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-    });
-
     // Page Load Animation (Fade-In)
     document.addEventListener('DOMContentLoaded', () => {
         const mainContent = document.getElementById('main-content');
