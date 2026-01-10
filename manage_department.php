@@ -368,6 +368,10 @@ input:checked + .slider:before {
 
 
 /* ===== Main Content Area Styling ===== */
+.content-wrapper {
+    padding: 20px;
+    width: 100%;
+}
 .main-content {
     flex-grow: 1;
     padding: 40px 15px;
@@ -376,14 +380,14 @@ input:checked + .slider:before {
     font-size: 2.2rem;
     font-weight: 700;
     color: var(--text-color);
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
     border-bottom: 3px solid var(--accent-color); /* Teal bottom border */
     padding-bottom: 0.5rem;
     transition: border-color 0.5s ease, color 0.5s ease;
 }
 .data-container { 
     background: var(--card-bg); 
-    padding: 2rem; 
+    padding: 1.5rem; 
     border-radius: 12px; /* Smoother corners */
     box-shadow: var(--shadow-light); 
     border: 1px solid var(--border-color);
@@ -523,7 +527,8 @@ input:checked + .slider:before {
     </div>
 </aside>
 
-<div class="main-content container py-4">
+<div class="main-container">
+<div class="content-wrapper">
     
     <div class="d-flex justify-content-between align-items-center page-header">
         <h1><i class="fa-solid fa-building me-2"></i>Manage Departments</h1>
@@ -637,6 +642,7 @@ input:checked + .slider:before {
     </div>
   </div>
 </div>
+</div><!-- End main-container -->
 
 <div class="modal fade" id="deleteDepartmentModal" tabindex="-1" aria-labelledby="deleteDepartmentModalLabel" aria-hidden="true">
   <div class="modal-dialog">

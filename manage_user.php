@@ -227,7 +227,8 @@ $mobile_footer_content = '
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 30px;
+        margin-bottom: 20px;
+        padding: 0;
     }
 
     .header-container h2 {
@@ -315,18 +316,25 @@ $mobile_footer_content = '
     }
 
     /* --- Table Styles (Minimalist Card Look) --- */
+    .content-wrapper {
+        padding: 15px;
+        width: 100%;
+    }
+    
     .table-responsive {
-        border-radius: 12px;
+        border-radius: 8px;
         overflow-x: auto;
         border: 1px solid var(--border-color);
         box-shadow: var(--shadow-light);
         background-color: var(--card-bg);
         transition: background-color 0.5s ease, border-color 0.5s ease;
+        width: 100%;
     }
     
     .table {
         color: var(--text-color);
         margin-bottom: 0;
+        font-size: 0.9rem;
     }
 
     .table thead th {
@@ -336,7 +344,8 @@ $mobile_footer_content = '
         font-weight: 700;
         white-space: nowrap;
         transition: background-color 0.5s ease, color 0.5s ease;
-        padding: 1rem 0.75rem;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
     }
     
     .table tbody tr {
@@ -351,7 +360,6 @@ $mobile_footer_content = '
     .table td, .table th {
         border-color: var(--border-color);
         vertical-align: middle;
-        white-space: nowrap;
         transition: border-color 0.5s ease, color 0.5s ease;
     }
 
@@ -439,12 +447,6 @@ $mobile_footer_content = '
 </style>
 </head>
 <body>
-<div class="container">
-
-    <div class="header-container">
-        <h2><i class="fas fa-shield-alt me-2"></i> Vision Angles | Manage Users</h2>
-        <a href="add_user.php" class="btn btn-success"><i class="fas fa-user-plus me-2"></i> Add New User</a>
-    </div>
 
     <?php 
     if($msg) echo "<div class='alert alert-success'><i class='fas fa-check-circle me-2'></i>" . htmlspecialchars($msg) . "</div>"; 
@@ -507,8 +509,14 @@ $mobile_footer_content = '
         </a>
     </div>
 </aside>
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped">
+<div class="main-container">
+    <div class="content-wrapper">
+        <div class="header-container">
+            <h2><i class="fas fa-shield-alt me-2"></i> Vision Angles | Manage Users</h2>
+            <a href="add_user.php" class="btn btn-success"><i class="fas fa-user-plus me-2"></i> Add New User</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped w-100">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -552,8 +560,9 @@ $mobile_footer_content = '
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
     </div>
-</div>
+</div><!-- End main-container -->
 
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

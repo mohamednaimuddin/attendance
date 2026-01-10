@@ -52,12 +52,17 @@ body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-color);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
     margin: 0;
     transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Center the form container within main content area */
+.content-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+    min-height: calc(100vh - 80px);
 }
 
 /* ===== Form Container and Card Styling (UPDATED SHADOWS/COLORS) ===== */

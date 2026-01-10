@@ -829,7 +829,7 @@ $mobile_footer_content = '
     /* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
     @media print {
         @page {
-            margin-top: 2cm;
+            margin: 1cm;
             size: A4 portrait;
         }
 
@@ -839,10 +839,13 @@ $mobile_footer_content = '
 
         html,
         body {
-            background: #fff;
-            padding: 0;
-            margin: 0;
-            height: 100%;
+            background: #fff !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         /* Hide old print header - using new per-page header instead */
@@ -862,40 +865,51 @@ $mobile_footer_content = '
             display: none !important;
         }
 
+        /* Reset main-container for print - sidebar is hidden */
+        .main-container {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
+        }
+
         .report-card {
             box-shadow: none !important;
-            padding: 0;
-            border: none;
+            padding: 0 !important;
+            border: none !important;
             max-width: 100% !important;
-            height: 100%;
+            height: auto !important;
+            overflow: visible !important;
         }
 
         .table-responsive {
             box-shadow: none !important;
-            padding: 0;
-            border: none;
+            padding: 0 !important;
+            border: none !important;
             max-width: 100% !important;
             overflow: visible !important;
+            height: auto !important;
         }
 
         .container-fluid {
             padding: 0 !important;
             margin: 0 !important;
-            height: 100%;
+            height: auto !important;
+            overflow: visible !important;
         }
 
         .user-report-section {
             margin: 0 !important;
-            padding: 0 !important;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
+            padding: 5px 0 !important;
+            height: auto !important;
+            display: block !important;
+            overflow: visible !important;
         }
 
         .user-report-section h4 {
             margin: 0 0 1px 0 !important;
             font-size: 8pt !important;
-            flex-shrink: 0;
             page-break-after: avoid;
             break-after: avoid;
         }
@@ -928,19 +942,12 @@ $mobile_footer_content = '
         .print-footer {
             display: block !important;
             position: static;
-            margin-top: auto;
+            margin-top: 5px;
             width: 100%;
             text-align: right;
             font-size: 6pt;
             padding: 1px 2px;
             color: #555;
-            flex-shrink: 0;
-        }
-
-        .table-responsive {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
         }
 
         table {

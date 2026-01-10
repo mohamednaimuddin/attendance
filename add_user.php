@@ -245,6 +245,8 @@ $mobile_footer_content = '
     </div>
 </aside>
 
+<div class="main-container">
+<div class="content-wrapper">
 <div class="form-container">
     <h2><i class="fas fa-user-plus me-2"></i> Add New System User</h2>
     <?php 
@@ -305,6 +307,8 @@ $mobile_footer_content = '
         </div>
     </form>
 </div>
+</div>
+</div><!-- End main-container -->
 
 </body>
 </html>

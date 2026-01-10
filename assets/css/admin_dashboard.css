@@ -54,10 +54,16 @@ body {
 .main-container {
     margin-left: 250px; 
     width: calc(100% - 250px);
-    display: flex;
-    flex-direction: column;
     min-height: 100vh;
-    transition: all 0.3s ease; 
+    transition: all 0.3s ease;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+
+.content-wrapper {
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* Adjust for small screens (Mobile/Tablet: < 992px) */
@@ -379,4 +385,35 @@ input:checked + .slider:before {
     right: -10px; 
     z-index: 50;
     padding: 0.5em 0.8em;
+}
+
+/* ================================================= */
+/* ===== PRINT STYLES ===== */
+/* ================================================= */
+@media print {
+    /* Hide sidebar completely */
+    .sidebar {
+        display: none !important;
+    }
+    
+    /* Reset main container for full width */
+    .main-container {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+    
+    /* Remove body flex which can cause issues */
+    body {
+        display: block !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+    
+    /* Ensure content wrapper shows everything */
+    .content-wrapper {
+        overflow: visible !important;
+        height: auto !important;
+    }
 }

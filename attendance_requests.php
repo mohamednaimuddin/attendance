@@ -512,6 +512,7 @@ $mobile_footer_content = '
         </a>
     </div>
 </aside>
+<div class="main-container">
     <div class="container-fluid">
 
         <div class="dashboard-header d-flex flex-wrap justify-content-between align-items-center">
@@ -740,6 +741,7 @@ $mobile_footer_content = '
             <?php endif; ?>
         </div>
     </div>
+</div><!-- End main-container -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
