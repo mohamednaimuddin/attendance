@@ -553,10 +553,6 @@ $mobile_footer_content = '
             </tbody>
         </table>
     </div>
-
-    <div class="text-center mt-4">
-        <a href="admin_dashboard.php" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i> Back to Dashboard</a>
-    </div>
 </div>
 
 

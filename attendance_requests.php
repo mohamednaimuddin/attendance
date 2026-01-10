@@ -517,10 +517,6 @@ $mobile_footer_content = '
         <div class="dashboard-header d-flex flex-wrap justify-content-between align-items-center">
             <h1><i class="fa-solid fa-clock-rotate-left me-2" style="color: var(--accent-color);"></i> Attendance
                 Corrections</h1>
-            <a href="admin_dashboard.php" class="btn btn-outline-secondary mt-2 mt-md-0"
-                style="--bs-btn-border-color: var(--accent-color); --bs-btn-color: var(--accent-color);">
-                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
-            </a>
         </div>
 
         <?php if ($message): ?>

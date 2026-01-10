@@ -171,7 +171,6 @@ $mobile_footer_content = '
 </div>
 ';
 ?>
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -303,9 +302,6 @@ $mobile_footer_content = '
             <button class="btn btn-primary-accent" type="submit">
                 <i class="fas fa-save me-2"></i> Create Account
             </button>
-            <a href="admin_dashboard.php" class="btn btn-outline-secondary mt-2">
-                <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
-            </a>
         </div>
     </form>
 </div>

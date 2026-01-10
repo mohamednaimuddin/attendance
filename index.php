@@ -113,15 +113,6 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['SESSION_START_TIME']) && (ti
     </div>
 
     <div class="right-side">
-        
-        <div class="theme-switch-wrapper">
-            <em id="theme-label">Toggle Theme</em>
-            <label class="theme-switch small" for="theme-toggle">
-                <input type="checkbox" id="theme-toggle" role="switch" aria-labelledby="theme-label">
-                <div class="slider round"></div>
-            </label>
-        </div>
-
         <div class="login-card">
             <h2>Log In</h2>
             <?php if(isset($error)): ?>
@@ -160,45 +151,6 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['SESSION_START_TIME']) && (ti
 </footer>
 
 <script>
-// --- Theme Toggle Logic (Unchanged) ---
-const themeToggle = document.getElementById('theme-toggle');
-const htmlElement = document.documentElement;
-const themeLabel = document.getElementById('theme-label');
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
-
-function applyTheme(theme) {
-    if(theme === 'dark') {
-        htmlElement.classList.add('dark-mode');
-        themeToggle.checked = true;
-        themeLabel.textContent = "Light Mode";
-    } else {
-        htmlElement.classList.remove('dark-mode');
-        themeToggle.checked = false;
-        themeLabel.textContent = "Dark Mode";
-    }
-}
-function getInitialTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        return savedTheme;
-    } else {
-        return prefersDark.matches ? 'dark' : 'light';
-    }
-}
-
-applyTheme(getInitialTheme());
-
-themeToggle.addEventListener('change', () => {
-    const newTheme = themeToggle.checked ? 'dark' : 'light';
-    applyTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-});
-
-prefersDark.addEventListener('change', (e) => {
-    if (!localStorage.getItem('theme')) {
-        applyTheme(e.matches ? 'dark' : 'light');
-    }
-});
 
 document.addEventListener('DOMContentLoaded', () => {
     const usernameInput = document.getElementById('username-input');

@@ -589,12 +589,6 @@ input:checked + .slider:before {
             </table>
         </div>
     </div>
-    
-    <div class="text-center mt-5">
-        <a href="admin_dashboard.php" class="btn btn-lg btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
-        </a>
-    </div>
     </div>
 
 <div class="modal fade" id="addDepartmentModal" tabindex="-1" aria-labelledby="addDepartmentModalLabel" aria-hidden="true">

@@ -434,14 +434,7 @@ $mobile_footer_content = '
                     <i class="fas fa-info-circle me-2"></i> No reset requests have been marked as handled yet.
                 </div>
             <?php endif; ?>
-        </div>
-
-        <div class="text-center mt-5 mb-4">
-            <a href="admin_dashboard.php" class="btn btn-lg btn-outline-secondary">
-                <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
-            </a>
-        </div>
-        
+        </div>        
     </div>
 </div>
 
