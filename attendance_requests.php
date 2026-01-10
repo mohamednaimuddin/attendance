@@ -455,7 +455,40 @@ $mobile_footer_content = '
 </head>
 
 <body>
-    <aside class="sidebar d-print-none d-lg-flex">
+
+<!-- Mobile Header with Hamburger Menu -->
+<header class="mobile-header">
+    <button class="hamburger-btn" id="sidebarToggle" aria-label="Toggle Menu">
+        <i class="fas fa-bars"></i>
+    </button>
+    <span class="mobile-brand"><i class="fas fa-cubes me-2"></i>Vision Angles</span>
+    <div class="mobile-header-actions">
+        <?php if ($total_alerts > 0): ?>
+        <div class="dropdown d-inline-block">
+            <button class="btn p-0 position-relative text-white" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-bell"></i>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-danger" style="font-size: 0.6rem; padding: 0.25em 0.4em;">
+                    <?= $total_alerts ?>
+                </span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" style="min-width: 220px;">
+                <li class="dropdown-header fw-bold">Pending (<?= $total_alerts ?>)</li>
+                <?php if ($pending_corrections > 0 && !$corrections_dismissed): ?>
+                <li><a href="attendance_requests.php" class="dropdown-item"><i class="fa-solid fa-clock-rotate-left me-2 text-warning"></i><?= $pending_corrections ?> Corrections</a></li>
+                <?php endif; ?>
+                <?php if ($pending_resets > 0 && !$resets_dismissed): ?>
+                <li><a href="reset_requests.php" class="dropdown-item"><i class="fa-solid fa-key me-2 text-danger"></i><?= $pending_resets ?> Resets</a></li>
+                <?php endif; ?>
+            </ul>
+        </div>
+        <?php endif; ?>
+    </div>
+</header>
+
+<!-- Sidebar Overlay for Mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <aside class="sidebar d-print-none" id="sidebar">
     <div class="sidebar-header">
         <i class="fas fa-cubes me-2"></i>Vision Angles
     </div>
@@ -744,6 +777,58 @@ $mobile_footer_content = '
 </div><!-- End main-container -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// Sidebar Toggle for Mobile
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    function openSidebar() {
+        sidebar.classList.add('sidebar-open');
+        sidebarOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeSidebar() {
+        sidebar.classList.remove('sidebar-open');
+        sidebarOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() {
+            if (sidebar.classList.contains('sidebar-open')) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        });
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+    
+    // Close sidebar when clicking a nav link on mobile
+    const navLinks = sidebar.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            if (window.innerWidth < 992) {
+                closeSidebar();
+            }
+        });
+    });
+    
+    // Close sidebar on window resize to desktop
+    window.addEventListener('resize', function() {
+        if (window.innerWidth >= 992) {
+            closeSidebar();
+        }
+    });
+});
+</script>
 
 </body>
 
