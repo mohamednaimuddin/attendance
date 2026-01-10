@@ -435,7 +435,6 @@ $mobile_footer_content = '
         font-family: 'Poppins', sans-serif;
         background-color: var(--bg-primary);
         color: var(--text-color);
-        padding: 20px;
         transition: background-color 0.5s ease, color 0.5s ease;
     }
 
@@ -781,9 +780,6 @@ $mobile_footer_content = '
 
     /* === MOBILE RESPONSIVENESS ADJUSTMENTS === */
     @media (max-width: 767px) {
-        body {
-            padding: 10px;
-        }
 
         .report-card {
             padding: 15px;
@@ -1100,7 +1096,7 @@ $mobile_footer_content = '
 </head>
 
 <body>
-<aside class="sidebar d-print-none d-lg-flex">
+<aside class="sidebar d-print-none">
     <div class="sidebar-header">
         <i class="fas fa-cubes me-2"></i>Vision Angles
     </div>
@@ -1157,6 +1153,7 @@ $mobile_footer_content = '
         </a>
     </div>
 </aside>
+<div class="main-container">
  <div class="container-fluid py-4">
 
         <div class="print-header" style="display:none;">
@@ -1336,6 +1333,7 @@ $mobile_footer_content = '
 
 
     </div>
+</div><!-- End main-container -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>

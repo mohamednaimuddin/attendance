@@ -36,7 +36,7 @@ body {
  */
 /* Desktop Default (lg breakpoint: >= 992px) */
 .sidebar {
-    width: 230px; 
+    width: 250px; 
     height: 100vh;
     position: fixed;
     top: 0;
@@ -52,8 +52,8 @@ body {
 }
 
 .main-container {
-    margin-left: 230px; 
-    width: calc(100% - 230px);
+    margin-left: 250px; 
+    width: calc(100% - 250px);
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -147,6 +147,7 @@ body {
     font-weight: 500;
     border-left: 3px solid transparent; 
     transition: all 0.2s ease;
+    white-space: nowrap;
 }
 .nav-link:hover {
     background: rgba(255, 255, 255, 0.05);

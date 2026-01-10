@@ -12,6 +12,10 @@ if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
     exit;
 }
 
+// Alert dismissal state
+$corrections_dismissed = $_SESSION['alert_corrections_dismissed'] ?? false;
+$resets_dismissed = $_SESSION['alert_resets_dismissed'] ?? false;
+
 // Filters
 $start = $_GET['start'] ?? date("Y-m-01");
 $end = $_GET['end'] ?? date("Y-m-t");
@@ -800,6 +804,65 @@ $mobile_footer_content = '
 
 <body>
 
+<aside class="sidebar d-print-none">
+    <div class="sidebar-header">
+        <i class="fas fa-cubes me-2"></i>Vision Angles
+    </div>
+
+    <nav class="sidebar-nav">
+        <a href="admin_dashboard.php" class="nav-link">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        
+        <a href="attendance_requests.php" class="nav-link">
+            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
+            <?php 
+            if ($pending_corrections > 0 && !$corrections_dismissed): 
+            ?>
+                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
+            <?php endif; ?>
+        </a>
+        
+        <a href="reset_requests.php" class="nav-link">
+            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
+            <?php 
+            if ($pending_resets > 0 && !$resets_dismissed): 
+            ?>
+                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
+            <?php endif; ?>
+        </a>
+
+
+        <span class="sidebar-title">User Management</span>
+        <a href="manage_user.php" class="nav-link">
+            <i class="fa-solid fa-users-gear"></i> Manage Users
+        </a>
+        <a href="add_user.php" class="nav-link">
+            <i class="fa-solid fa-user-plus"></i> Add New User
+        </a>
+        <a href="manage_department.php" class="nav-link">
+            <i class="fa-solid fa-sitemap"></i> Manage Department
+        </a>
+
+        <span class="sidebar-title">Reporting & Logs</span>
+        <a href="attendance_report.php" class="nav-link">
+            <i class="fa-solid fa-chart-line"></i> Attendance Reports
+        </a>
+        <a href="logs.php" class="nav-link active">
+            <i class="fa-solid fa-bug"></i> Activity Logs
+        </a>
+    </nav>
+
+    <div class="sidebar-footer d-none d-lg-block"> 
+        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
+        
+        <a href="logout.php" class="btn logout-btn-footer">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+        </a>
+    </div>
+</aside>
+
+<div class="main-container">
 
     <div class="container my-5">
         <div class="card p-4">
@@ -1019,63 +1082,6 @@ $base_url = 'logs.php?' . http_build_query([
     // 'page' will be added in the loop
 ]);
 ?>
-<aside class="sidebar d-print-none d-lg-flex">
-    <div class="sidebar-header">
-        <i class="fas fa-cubes me-2"></i>Vision Angles
-    </div>
-
-    <nav class="sidebar-nav">
-        <a href="admin_dashboard.php" class="nav-link ">
-            <i class="fas fa-tachometer-alt"></i> Dashboard
-        </a>
-        
-        <a href="attendance_requests.php" class="nav-link ">
-            <i class="fa-solid fa-clock-rotate-left" style="color: var(--warning-color);"></i> Correction Requests 
-            <?php 
-            if ($pending_corrections > 0 && !$corrections_dismissed): 
-            ?>
-                <span class="badge bg-warning rounded-pill ms-1 text-dark"><?= $pending_corrections ?></span>
-            <?php endif; ?>
-        </a>
-        
-        <a href="reset_requests.php" class="nav-link ">
-            <i class="fa-solid fa-key" style="color: var(--error-color);"></i> Password Requests 
-            <?php 
-            if ($pending_resets > 0 && !$resets_dismissed): 
-            ?>
-                <span class="badge bg-danger rounded-pill ms-1"><?= $pending_resets ?></span>
-            <?php endif; ?>
-        </a>
-
-
-        <span class="sidebar-title">User Management</span>
-        <a href="manage_user.php" class="nav-link">
-            <i class="fa-solid fa-users-gear"></i> Manage Users
-        </a>
-        <a href="add_user.php" class="nav-link">
-            <i class="fa-solid fa-user-plus"></i> Add New User
-        </a>
-        <a href="manage_department.php" class="nav-link">
-            <i class="fa-solid fa-sitemap"></i> Manage Department
-        </a>
-
-        <span class="sidebar-title">Reporting & Logs</span>
-        <a href="attendance_report.php" class="nav-link">
-            <i class="fa-solid fa-chart-line"></i> Attendance Reports
-        </a>
-        <a href="logs.php" class="nav-link active">
-            <i class="fa-solid fa-bug"></i> Activity Logs
-        </a>
-    </nav>
-
-    <div class="sidebar-footer d-none d-lg-block"> 
-        <span class="welcome-text"> <?= htmlspecialchars($admin_name) ?></span>
-        
-        <a href="logout.php" class="btn logout-btn-footer">
-            <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
-        </a>
-    </div>
-</aside>
 
             <div class="d-flex justify-content-between align-items-center mt-4">
                 <small class="text-muted">
@@ -1128,6 +1134,7 @@ $base_url = 'logs.php?' . http_build_query([
             </div>
         </div>
     </div>
+</div><!-- End of main-container -->
 
     <div class="modal fade" id="addMissingModal" tabindex="-1" aria-labelledby="addMissingModalLabel"
         aria-hidden="true">
