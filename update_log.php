@@ -13,8 +13,29 @@ if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
     exit;
 }
 
+// Helper function to build redirect URL with filters
+function buildRedirectUrl($filters) {
+    $params = [];
+    if (!empty($filters['start'])) $params['start'] = $filters['start'];
+    if (!empty($filters['end'])) $params['end'] = $filters['end'];
+    if (!empty($filters['user_id']) && $filters['user_id'] > 0) $params['user_id'] = $filters['user_id'];
+    if (!empty($filters['page']) && $filters['page'] > 1) $params['page'] = $filters['page'];
+    
+    $query = http_build_query($params);
+    return 'logs.php' . ($query ? '?' . $query : '');
+}
+
 // Validate POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get filter parameters to preserve them
+    $filters = [
+        'start' => trim($_POST['filter_start'] ?? ''),
+        'end' => trim($_POST['filter_end'] ?? ''),
+        'user_id' => (int)($_POST['filter_user_id'] ?? 0),
+        'page' => (int)($_POST['filter_page'] ?? 1)
+    ];
+    $redirect_url = buildRedirectUrl($filters);
+    
     // Sanitize and validate inputs
     $id = filter_var($_POST['id'] ?? '', FILTER_VALIDATE_INT);
     $check_in = trim($_POST['check_in'] ?? '');
@@ -23,13 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Basic validation checks
     if (!$id) {
         $_SESSION['error'] = "Invalid log ID provided.";
-        header("Location: logs.php");
+        header("Location: " . $redirect_url);
         exit;
     }
 
     if (empty($check_in) && empty($check_out)) {
         $_SESSION['error'] = "Check-In time is required for a valid attendance log.";
-        header("Location: logs.php");
+        header("Location: " . $redirect_url);
         exit;
     }
 
@@ -66,8 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['error'] = "An unexpected error occurred: " . $e->getMessage();
     }
 
-    // Redirect back to the logs page to show results
-    header("Location: logs.php");
+    // Redirect back to the logs page with filters preserved
+    header("Location: " . $redirect_url);
     exit;
 } else {
     // If accessed directly without POST data

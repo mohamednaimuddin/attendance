@@ -19,7 +19,7 @@ $resets_dismissed = $_SESSION['alert_resets_dismissed'] ?? false;
 // Filters
 $start = $_GET['start'] ?? date("Y-m-01");
 $end = $_GET['end'] ?? date("Y-m-t");
-$user_id = $_GET['user_id'] ?? 0;
+$user_id = isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : 0;
 
 // --- PAGINATION SETUP ---
 $limit = 15; // Records per page
@@ -29,10 +29,10 @@ $offset = ($page - 1) * $limit;
 
 // --- Fetch selected user name for display ---
 $selected_user_name = 'All Users'; 
-if ($user_id) { 
+if ($user_id > 0) { 
     try {
         $stmt = $pdo->prepare("SELECT full_name FROM users WHERE id=?"); 
-        $stmt->execute([(int)$user_id]); 
+        $stmt->execute([$user_id]); 
         $name = $stmt->fetchColumn(); 
         if ($name) {
             $selected_user_name = $name;
@@ -83,7 +83,7 @@ $count_sql = "SELECT COUNT(DISTINCT DATE(a.check_in), a.user_id)
         FROM attendance a
         JOIN users u ON a.user_id = u.id
         WHERE DATE(a.check_in) BETWEEN ? AND ?";
-if ($user_id) { $count_sql .= " AND a.user_id=?"; $count_params[] = $user_id; }
+if ($user_id > 0) { $count_sql .= " AND a.user_id=?"; $count_params[] = $user_id; }
 
 try {
     $count_stmt = $pdo->prepare($count_sql);
@@ -103,7 +103,7 @@ $pag_params = [$start, $end];
 $pag_sql = "SELECT DISTINCT DATE(a.check_in) AS day, a.user_id
         FROM attendance a
         WHERE DATE(a.check_in) BETWEEN ? AND ?";
-if ($user_id) { $pag_sql .= " AND a.user_id=?"; $pag_params[] = $user_id; }
+if ($user_id > 0) { $pag_sql .= " AND a.user_id=?"; $pag_params[] = $user_id; }
 // CHANGE: Order by day DESC to get latest first
 $pag_sql .= " ORDER BY day DESC, a.user_id ASC LIMIT ? OFFSET ?"; 
 //                               ^^^^
@@ -116,10 +116,9 @@ try {
     $pag_stmt->bindValue(1, $pag_params[0], PDO::PARAM_STR);
     $pag_stmt->bindValue(2, $pag_params[1], PDO::PARAM_STR);
     $param_index = 3;
-    $param_index = 3;
-if (!empty($user_id)) {
-    $pag_stmt->bindValue($param_index++, $user_id, PDO::PARAM_INT);
-}
+    if ($user_id > 0) {
+        $pag_stmt->bindValue($param_index++, $user_id, PDO::PARAM_INT);
+    }
     
     // Bind LIMIT and OFFSET
     $pag_stmt->bindValue($param_index++, $limit, PDO::PARAM_INT);
@@ -141,7 +140,7 @@ if (!empty($paginated_days)) {
             JOIN users u ON a.user_id = u.id
             LEFT JOIN shifts s ON u.shift_id = s.id
             WHERE DATE(a.check_in) BETWEEN ? AND ?";
-    if ($user_id) { $fetch_sql .= " AND a.user_id=?"; $fetch_params[] = $user_id; }
+    if ($user_id > 0) { $fetch_sql .= " AND a.user_id=?"; $fetch_params[] = $user_id; }
     $fetch_sql .= " ORDER BY a.user_id, a.check_in ASC";
 
     try {
@@ -1030,6 +1029,11 @@ if($log['check_in_lat'] && $log['check_in_lng']): ?>
                                                                     <div class="modal-body">
                                                                         <input type="hidden" name="id"
                                                                             value="<?=$log['id']?>">
+                                                                        <!-- Hidden fields to preserve filters -->
+                                                                        <input type="hidden" name="filter_start" value="<?= htmlspecialchars($start) ?>">
+                                                                        <input type="hidden" name="filter_end" value="<?= htmlspecialchars($end) ?>">
+                                                                        <input type="hidden" name="filter_user_id" value="<?= htmlspecialchars($user_id) ?>">
+                                                                        <input type="hidden" name="filter_page" value="<?= htmlspecialchars($page) ?>">
                                                                         <div class="mb-3">
                                                                             <label class="form-label">Check-In</label>
                                                                             <input type="datetime-local" name="check_in"
@@ -1141,6 +1145,11 @@ $base_url = 'logs.php?' . http_build_query([
         <div class="modal-dialog">
             <div class="modal-content">
                 <form id="addMissingForm" method="POST" action="add_missing_log.php">
+                    <!-- Hidden fields to preserve filters -->
+                    <input type="hidden" name="filter_start" value="<?= htmlspecialchars($start) ?>">
+                    <input type="hidden" name="filter_end" value="<?= htmlspecialchars($end) ?>">
+                    <input type="hidden" name="filter_user_id" value="<?= htmlspecialchars($user_id) ?>">
+                    <input type="hidden" name="filter_page" value="<?= htmlspecialchars($page) ?>">
                     <div class="modal-header">
                         <h5 class="modal-title" id="addMissingModalLabel">Add Missing Log</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

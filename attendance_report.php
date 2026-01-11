@@ -829,7 +829,7 @@ $mobile_footer_content = '
     /* Print Styles: COMPACT - FIT FULL MONTH ON ONE A4 PAGE */
     @media print {
         @page {
-            margin: 1cm;
+            margin: 0.3cm;
             size: A4 portrait;
         }
 
@@ -842,7 +842,7 @@ $mobile_footer_content = '
             background: #fff !important;
             padding: 0 !important;
             margin: 0 !important;
-            height: auto !important;
+            height: 100% !important;
             overflow: visible !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
@@ -879,6 +879,7 @@ $mobile_footer_content = '
             padding: 0 !important;
             border: none !important;
             max-width: 100% !important;
+            width: 100% !important;
             height: auto !important;
             overflow: visible !important;
         }
@@ -888,6 +889,7 @@ $mobile_footer_content = '
             padding: 0 !important;
             border: none !important;
             max-width: 100% !important;
+            width: 100% !important;
             overflow: visible !important;
             height: auto !important;
         }
@@ -895,21 +897,35 @@ $mobile_footer_content = '
         .container-fluid {
             padding: 0 !important;
             margin: 0 !important;
+            width: 100% !important;
             height: auto !important;
             overflow: visible !important;
         }
 
         .user-report-section {
             margin: 0 !important;
-            padding: 5px 0 !important;
+            padding: 0 !important;
             height: auto !important;
+            max-height: 100vh !important;
             display: block !important;
-            overflow: visible !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+        }
+
+        .user-report-section .table-responsive {
+            display: block !important;
+            height: auto !important;
+            overflow: hidden !important;
+        }
+
+        .user-report-section table {
+            height: auto !important;
         }
 
         .user-report-section h4 {
             margin: 0 0 1px 0 !important;
-            font-size: 8pt !important;
+            font-size: 7pt !important;
             page-break-after: avoid;
             break-after: avoid;
         }
@@ -922,7 +938,7 @@ $mobile_footer_content = '
 
         .report-info {
             display: block;
-            font-size: 8pt;
+            font-size: 7pt;
             margin-bottom: 1px;
             border-left: none;
             padding-left: 0;
@@ -951,10 +967,12 @@ $mobile_footer_content = '
         }
 
         table {
-            width: 100%;
+            width: 100% !important;
+            max-width: 100% !important;
             border-collapse: collapse;
             color: #000;
             table-layout: fixed;
+            border: 1.5pt solid #000 !important;
         }
 
         th,
@@ -962,11 +980,23 @@ $mobile_footer_content = '
             border: 0.5pt solid #444;
             padding: 2px 3px;
             font-size: 7pt;
-            line-height: 1.2;
+            line-height: 1.1;
             white-space: nowrap;
             vertical-align: middle;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        /* Ensure right border is visible */
+        th:last-child,
+        td:last-child {
+            border-right: 1.5pt solid #000 !important;
+        }
+
+        /* Ensure bottom border is visible */
+        tbody tr:last-child td,
+        tfoot tr:last-child td {
+            border-bottom: 1.5pt solid #000 !important;
         }
 
         /* Make rows stretch to fill available space */
@@ -974,10 +1004,16 @@ $mobile_footer_content = '
             display: table-row-group;
         }
 
-        /* Row height - auto for short ranges, calculated for full month */
+        /* Row height - compact to fit 31 days + header + footer on one A4 page */
         tbody tr {
-            height: auto;
-            min-height: 14px;
+            height: 7.5mm;
+            line-height: 1.2;
+        }
+
+        /* Header and footer row height */
+        thead tr,
+        tfoot tr {
+            height: 7mm;
         }
 
         /* Make date column show compact format */
@@ -989,49 +1025,51 @@ $mobile_footer_content = '
             display: inline !important;
         }
 
-        /* Distribute column widths for A4 portrait */
+        /* Distribute column widths for A4 portrait - total should be ~100% */
         th:nth-child(1),
         td:nth-child(1) {
-            width: 12%;
-        }
-
-        /* Date - compact format */
-        th:nth-child(2),
-        td:nth-child(2) {
-            width: 10%;
+            width: 14%;
         }
 
         /* Check-In Time */
-        th:nth-child(3),
-        td:nth-child(3) {
-            width: 21%;
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: 12%;
         }
 
         /* Check-In Store */
-        th:nth-child(4),
-        td:nth-child(4) {
-            width: 10%;
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: 18%;
         }
 
         /* Check-Out Time */
-        th:nth-child(5),
-        td:nth-child(5) {
-            width: 21%;
+        th:nth-child(4),
+        td:nth-child(4) {
+            width: 12%;
         }
 
         /* Check-Out Store */
+        th:nth-child(5),
+        td:nth-child(5) {
+            width: 18%;
+        }
+
+        /* Work Time - larger font */
         th:nth-child(6),
         td:nth-child(6) {
-            width: 10%;
+            width: 13%;
+            font-size: 8pt !important;
+            font-weight: bold !important;
         }
 
-        /* Work Time */
+        /* Overtime - larger font */
         th:nth-child(7),
         td:nth-child(7) {
-            width: 10%;
+            width: 13%;
+            font-size: 8pt !important;
+            font-weight: bold !important;
         }
-
-        /* Overtime */
 
         /* Allow store columns to wrap if needed */
         th:nth-child(3),
@@ -1040,7 +1078,7 @@ $mobile_footer_content = '
         td:nth-child(5) {
             white-space: normal;
             word-break: break-word;
-            font-size: 6.5pt;
+            font-size: 6pt;
         }
 
         .table-header-custom th,
@@ -1052,7 +1090,13 @@ $mobile_footer_content = '
             print-color-adjust: exact;
             font-size: 7pt;
             font-weight: bold;
-            padding: 3px 3px;
+            padding: 2px 3px;
+            border: 1pt solid #000 !important;
+        }
+
+        /* Ensure tfoot has visible border */
+        tfoot tr:last-child td {
+            border-bottom: 1pt solid #000 !important;
         }
 
         /* Remove striping for cleaner print */
@@ -1079,24 +1123,27 @@ $mobile_footer_content = '
         .print-page-header {
             display: block !important;
             text-align: center;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
             color: #000;
             border-bottom: 1.5pt solid #000;
-            padding-bottom: 2px;
-            flex-shrink: 0;
+            padding: 2mm 0;
+            height: auto;
         }
 
         .print-page-header h1 {
-            font-size: 12pt;
+            font-size: 14pt;
             font-weight: 700;
             margin: 0;
             text-transform: uppercase;
+            line-height: 1.2;
+            letter-spacing: 1px;
         }
 
         .print-page-header p {
             font-size: 8pt;
-            margin: 1px 0 0 0;
+            margin: 2px 0 0 0;
             font-weight: 500;
+            line-height: 1.2;
         }
     }
     </style>

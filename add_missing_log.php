@@ -8,7 +8,28 @@ if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
     exit;
 }
 
+// Helper function to build redirect URL with filters
+function buildRedirectUrl($filters) {
+    $params = [];
+    if (!empty($filters['start'])) $params['start'] = $filters['start'];
+    if (!empty($filters['end'])) $params['end'] = $filters['end'];
+    if (!empty($filters['user_id']) && $filters['user_id'] > 0) $params['user_id'] = $filters['user_id'];
+    if (!empty($filters['page']) && $filters['page'] > 1) $params['page'] = $filters['page'];
+    
+    $query = http_build_query($params);
+    return 'logs.php' . ($query ? '?' . $query : '');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get filter parameters to preserve them
+    $filters = [
+        'start' => trim($_POST['filter_start'] ?? ''),
+        'end' => trim($_POST['filter_end'] ?? ''),
+        'user_id' => (int)($_POST['filter_user_id'] ?? 0),
+        'page' => (int)($_POST['filter_page'] ?? 1)
+    ];
+    $redirect_url = buildRedirectUrl($filters);
+    
     $user_id = $_POST['user_id'] ?? '';
 
     // Check-In fields
@@ -24,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate user_id
     if (empty($user_id)) {
         $_SESSION['error'] = "User is required!";
-        header("Location: logs.php");
+        header("Location: " . $redirect_url);
         exit;
     }
 
@@ -34,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check_in_date) {
             if (!$check_in_time || !$check_in_store) {
                 $_SESSION['error'] = "Check-In Time and Store are required when Check-In Date is filled!";
-                header("Location: logs.php");
+                header("Location: " . $redirect_url);
                 exit;
             }
             $check_in = date('Y-m-d H:i:s', strtotime("$check_in_date $check_in_time"));
@@ -45,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check_out_date) {
             if (!$check_out_time || !$check_out_store) {
                 $_SESSION['error'] = "Check-Out Time and Store are required when Check-Out Date is filled!";
-                header("Location: logs.php");
+                header("Location: " . $redirect_url);
                 exit;
             }
             $check_out = date('Y-m-d H:i:s', strtotime("$check_out_date $check_out_time"));
@@ -68,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['error'] = "Error adding log: " . $e->getMessage();
     }
 
-    header("Location: logs.php");
+    header("Location: " . $redirect_url);
     exit;
 } else {
     header("Location: logs.php");
